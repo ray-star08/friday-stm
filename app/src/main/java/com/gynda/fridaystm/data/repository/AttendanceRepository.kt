@@ -1,7 +1,6 @@
 package com.gynda.fridaystm.data.repository
 
 import com.google.firebase.firestore.DocumentReference
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
@@ -9,7 +8,6 @@ import com.gynda.fridaystm.data.model.AttendanceRecord
 import com.gynda.fridaystm.data.model.CheckoutStamp
 import com.gynda.fridaystm.data.model.PembiasaanStamp
 import com.gynda.fridaystm.util.AttendanceFields
-import com.gynda.fridaystm.util.AttendanceStatus
 import com.gynda.fridaystm.util.FirestoreCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -109,15 +107,7 @@ class FirestoreAttendanceRepository(
         stamp: PembiasaanStamp,
     ): Result<Unit> = runCatching {
         docRef(uid, date).set(
-            mapOf(
-                AttendanceFields.UID to uid,
-                AttendanceFields.DATE to date,
-                AttendanceFields.GRADE to grade,
-                AttendanceFields.PEMBIASAAN to stamp,
-                // Server clock, not the device's — the rules require it to equal
-                // `request.time`, and `stamp.serverTime` is filled the same way.
-                AttendanceFields.UPDATED_AT to FieldValue.serverTimestamp(),
-            ),
+            pembiasaanMergePayload(uid, date, grade, stamp),
             SetOptions.merge(),
         ).await()
         Unit
@@ -129,13 +119,7 @@ class FirestoreAttendanceRepository(
         stamp: CheckoutStamp,
     ): Result<Unit> = runCatching {
         docRef(uid, date).set(
-            mapOf(
-                AttendanceFields.UID to uid,
-                AttendanceFields.DATE to date,
-                AttendanceFields.CHECKOUT to stamp,
-                AttendanceFields.STATUS to AttendanceStatus.COMPLETE,
-                AttendanceFields.UPDATED_AT to FieldValue.serverTimestamp(),
-            ),
+            checkoutMergePayload(uid, date, stamp),
             SetOptions.merge(),
         ).await()
         Unit
