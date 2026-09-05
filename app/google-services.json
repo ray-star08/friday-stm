@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "684780377632",
+    "project_id": "friday-stm-ef55e",
+    "storage_bucket": "friday-stm-ef55e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:684780377632:android:01904e83cdd66207c84e45",
+        "android_client_info": {
+          "package_name": "com.gynda.fridaystm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhjW2mRygaCV-1UOkRly7XZJPdQ9Z5imQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

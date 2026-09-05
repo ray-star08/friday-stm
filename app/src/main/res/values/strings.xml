@@ -1,0 +1,164 @@
+<resources>
+    <string name="app_name">Friday STM</string>
+
+    <!-- Home / attendance state (resolved from HomeUiState.Error / SubmitStatus.Error, SKILL §3.2) -->
+    <string name="home_error_generic">Terjadi kesalahan saat memuat data. Coba lagi.</string>
+    <string name="submit_error_generic">Gagal menyimpan kehadiran. Periksa koneksi lalu coba lagi.</string>
+
+    <!-- Home header -->
+    <string name="home_greeting">Halo, %1$s 👋</string>
+    <string name="home_default_name">Siswa</string>
+
+    <!-- Special-week rotation override badge (task 3.3) -->
+    <string name="home_special_week_badge">Jadwal Khusus Pekan Ini</string>
+    <string name="cd_special_week_badge">Jadwal kegiatan pekan ini diatur khusus, berbeda dari rotasi biasa.</string>
+
+    <!-- Pembiasaan activity display names -->
+    <string name="activity_talim">Ta\'lim</string>
+    <string name="activity_larkam">Larkam</string>
+    <string name="activity_senam">Senam</string>
+
+    <!-- DynamicPhaseCard content per FridayPhase -->
+    <string name="phase_before_eyebrow">Menunggu</string>
+    <string name="phase_before_title">Belum Dimulai</string>
+    <string name="phase_before_body">Kegiatan Jumat pagi dimulai pukul 06.30. Bersiaplah!</string>
+
+    <string name="phase_pembiasaan_eyebrow">Fase 1 · 06.30–08.00</string>
+    <string name="phase_pembiasaan_title_fallback">Pembiasaan</string>
+    <string name="phase_pembiasaan_body">Pembiasaan sesuai rotasi kelasmu pekan ini.</string>
+
+    <string name="phase_checkout_eyebrow">Fase 2 · 08.00</string>
+    <string name="phase_checkout_title">Waktunya Check-out</string>
+    <string name="phase_checkout_body">Jangan lupa check-out sebelum KBM dimulai.</string>
+
+    <string name="phase_done_eyebrow">Selesai</string>
+    <string name="phase_done_title">Kegiatan Selesai</string>
+    <string name="phase_done_body">Rangkaian kegiatan Jumat pagi sudah selesai. Sampai jumpa!</string>
+
+    <string name="phase_not_friday_eyebrow">Libur</string>
+    <string name="phase_not_friday_title">Bukan Hari Jumat</string>
+    <string name="phase_not_friday_body">Aplikasi aktif setiap Jumat pagi. Sampai jumpa Jumat!</string>
+
+    <!-- BigActionButton labels, driven by HomeAction -->
+    <string name="action_check_in_pembiasaan">Check-in %1$s</string>
+    <string name="action_pembiasaan_done">%1$s Tercatat</string>
+    <string name="action_check_out">Check-out Sekarang</string>
+    <string name="action_checked_out">Sudah Check-out</string>
+
+    <!-- StatusStepper step labels (Pembiasaan → Check-out) -->
+    <string name="step_pembiasaan">Pembiasaan</string>
+    <string name="step_checkout">Check-out</string>
+    <!-- Legacy: Apel phase removed from the live flow, kept for HistoryScreen records. -->
+    <string name="step_apel">Apel</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_phase_icon">Ikon fase kegiatan</string>
+    <string name="cd_step_done">%1$s: selesai</string>
+    <string name="cd_step_active">%1$s: sedang berlangsung</string>
+    <string name="cd_step_upcoming">%1$s: belum</string>
+
+    <!-- Geofence gating (Milestone 4.2) -->
+    <string name="geofence_inside">Anda berada di %1$s. Silakan check-in.</string>
+    <string name="geofence_distance">Anda %1$d m dari %2$s</string>
+    <string name="geofence_locating">Mencari lokasi Anda…</string>
+    <string name="geofence_out_of_range">Mendekatlah ke %1$s untuk check-in</string>
+
+    <!-- Location runtime permission (Milestone 4.1) -->
+    <string name="location_permission_rationale">Aplikasi butuh akses lokasi presisi untuk memastikan Anda berada di area kegiatan saat check-in.</string>
+    <string name="location_permission_grant">Izinkan Lokasi</string>
+    <string name="location_permission_denied">Izin lokasi ditolak. Aktifkan lewat Pengaturan agar bisa check-in.</string>
+
+    <!-- Anti-fake-GPS (Milestone 4.2, fail-closed) -->
+    <string name="location_mock_detected">Lokasi palsu / Mock GPS terdeteksi. Silakan matikan aplikasi Mock Location.</string>
+
+    <!-- Shared permission action -->
+    <string name="permission_open_settings">Buka Pengaturan</string>
+
+    <!-- Camera capture (Milestone 4.3) -->
+    <string name="camera_title">Ambil Selfie</string>
+    <string name="camera_instruction">Posisikan wajah Anda di dalam bingkai lalu ambil foto.</string>
+    <string name="camera_capture">Ambil Foto</string>
+    <string name="camera_retake">Ulangi</string>
+    <string name="camera_use_photo">Gunakan Foto</string>
+    <string name="camera_permission_rationale">Aplikasi butuh akses kamera untuk selfie bukti kehadiran.</string>
+    <string name="camera_permission_grant">Izinkan Kamera</string>
+    <string name="camera_permission_denied">Izin kamera ditolak. Aktifkan lewat Pengaturan.</string>
+    <string name="camera_open_settings">Buka Pengaturan</string>
+    <string name="cd_camera_preview">Pratinjau kamera</string>
+    <string name="cd_selfie_preview">Pratinjau hasil selfie</string>
+    <string name="camera_uploading">Mengunggah foto…</string>
+    <string name="camera_upload_error">Gagal mengunggah foto. Coba lagi.</string>
+
+    <!-- History (Milestone 5.1) -->
+    <string name="history_error_generic">Gagal memuat riwayat. Coba lagi.</string>
+    <string name="history_empty">Belum ada riwayat presensi.</string>
+    <string name="history_phase_time">Pukul %1$s</string>
+    <string name="history_phase_location">Lokasi: %1$.5f, %2$.5f</string>
+    <string name="history_checkout_at">Check-out pukul %1$s</string>
+    <string name="history_valid">Valid</string>
+    <string name="history_invalid">Di luar area</string>
+    <string name="cd_history_selfie">Foto selfie %1$s</string>
+
+    <!-- Login (Milestone 5.2) -->
+    <string name="login_title">Masuk</string>
+    <string name="login_subtitle">Gunakan email &amp; kata sandi sekolahmu.</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_password_label">Kata sandi</string>
+    <string name="login_submit">Masuk</string>
+    <string name="login_error_invalid">Email atau kata sandi salah.</string>
+
+    <!-- Profile (Milestone 5.2) -->
+    <string name="profile_error_generic">Gagal memuat profil.</string>
+    <string name="profile_nis">NIS</string>
+    <string name="profile_kelas">Kelas</string>
+    <string name="profile_grade">Angkatan</string>
+    <string name="profile_logout">Keluar</string>
+    <string name="cd_profile_photo">Foto profil</string>
+
+    <!-- MiniMap (Milestone 5.1) -->
+    <string name="cd_minimap">Peta lokasi geofence</string>
+    <string name="cd_minimap_recenter">Pusatkan ke lokasi saya</string>
+
+    <!-- SelfiePreviewCard + CountdownTimer (Milestone 5.1 / 5.3) -->
+    <string name="status_presensi_masuk">Presensi Masuk</string>
+    <string name="status_presensi_kegiatan">Presensi Kegiatan</string>
+    <string name="cd_selfie_card">Foto selfie %1$s</string>
+    <string name="cd_countdown">%1$s: sisa %2$s</string>
+    <string name="countdown_pembiasaan">Batas check-in Pembiasaan</string>
+    <string name="countdown_checkout">Batas check-out</string>
+
+    <!-- Senam weekly video section (Activity 3) -->
+    <string name="senam_title">Senam Pekan Ini</string>
+    <string name="senam_not_set">Video senam pekan ini belum diatur oleh instruktur.</string>
+    <string name="senam_manage_set">Tempel URL YouTube untuk mengatur video senam pekan ini.</string>
+    <string name="senam_manage_replace">Ganti video senam pekan ini dengan URL YouTube baru.</string>
+    <string name="senam_url_label">URL / ID Video YouTube</string>
+    <string name="senam_save">Simpan Video</string>
+    <string name="senam_saved">Video tersimpan.</string>
+    <string name="senam_error_bad_url">URL YouTube tidak valid. Periksa lalu coba lagi.</string>
+
+    <!-- Ta'lim class summary section (Activity 2, class-rep only) -->
+    <string name="talim_summary_title">Rangkuman Ta\'lim Kelas</string>
+    <string name="talim_penceramah_label">Penceramah</string>
+    <string name="talim_tema_label">Tema</string>
+    <string name="talim_ringkasan_label">Ringkasan</string>
+    <string name="talim_submit">Kirim Rangkuman</string>
+    <string name="talim_submitted">Rangkuman terkirim.</string>
+    <string name="talim_error_incomplete">Lengkapi penceramah, tema, dan ringkasan.</string>
+    <string name="talim_prompt">Isi rangkuman Ta\'lim kelasmu pekan ini.</string>
+    <string name="talim_done_by">Dikirim oleh %1$s</string>
+
+    <!-- Larkam run tracker (Activity 4, osmdroid + Firestore) -->
+    <string name="larkam_track_title">Larkam · Lari Pagi</string>
+    <string name="larkam_open">Mulai Larkam</string>
+    <string name="larkam_start">Mulai Lari</string>
+    <string name="larkam_stop">Selesai &amp; Simpan</string>
+    <string name="larkam_duration">Durasi</string>
+    <string name="larkam_distance">Jarak</string>
+    <string name="larkam_saving">Menyimpan lari…</string>
+    <string name="larkam_saved">Lari tersimpan.</string>
+    <string name="larkam_done">Selesai</string>
+    <string name="larkam_save_success">Aktivitas lari berhasil disimpan</string>
+    <string name="larkam_hint">Tekan Mulai lalu berlari; jarak &amp; durasi terhitung otomatis.</string>
+    <string name="cd_larkam_map">Peta rute lari</string>
+</resources>

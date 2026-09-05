@@ -1,0 +1,192 @@
+rules_version = '2';
+
+// ============================================================================
+// Friday STM — Firestore Security Rules
+// ----------------------------------------------------------------------------
+// Paste into: Firebase Console → Firestore Database → Rules → Publish.
+// Or deploy with the CLI:  firebase deploy --only firestore:rules
+//
+// Model:
+//   • Students authenticate, READ reference data (geofences, rotations, the
+//     week's Senam video) and READ/WRITE only their OWN documents: profile,
+//     attendance, Larkam runs, and their own class's Ta'lim summary.
+//   • Instructors/Admins get READ access across students for rekap.
+//   • Only Admins mutate reference data; only instructors set the Senam video;
+//     only class reps submit a Ta'lim summary.
+//   • Never trust the client for `valid`/geo — server rules can't verify GPS;
+//     tighten with Cloud Functions later if needed.
+//
+// Role wire values mirror util/Constants.kt → UserRole:
+//   student | class_rep | instructor | admin
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers ---------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Resolve the caller's role from their own profile. Guarded by exists() so a
+    // missing profile degrades to 'none' instead of erroring the evaluation.
+    // NOTE: each call bills a document read.
+    function role() {
+      return exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.role
+        : 'none';
+    }
+
+    // Staff = the roles allowed to read across students for rekap.
+    // 'instructor' is the wire value in util/Constants.kt → UserRole; there is no
+    // 'teacher' role, so testing for it silently reduced isStaff() to isAdmin().
+    function isStaff() {
+      return isSignedIn() && (role() == 'instructor' || role() == 'admin');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && role() == 'admin';
+    }
+
+    /** Class representative — the only role that submits a Ta'lim summary. */
+    function isClassRep() {
+      return isSignedIn() && role() == 'class_rep';
+    }
+
+    /** Instructor — the only role that sets the week's Senam video. */
+    function isInstructor() {
+      return isSignedIn() && role() == 'instructor';
+    }
+
+    // The caller's own class (`users/{uid}.kelas`), or '' when unknown. Used to
+    // scope Ta'lim summaries: a class rep may only touch their OWN class's doc.
+    // NOTE: each call bills a document read, same as role().
+    function myKelas() {
+      return exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('kelas', '')
+        : '';
+    }
+
+    // Anti-clock-tampering: the incoming write must carry `updatedAt` produced by
+    // FieldValue.serverTimestamp(), which Firestore resolves to exactly the
+    // `request.time` of this request. A client that substitutes its own device
+    // clock (fake "checked in at 06:45") therefore fails this check.
+    // Mirrors util/Constants.kt → AttendanceFields.UPDATED_AT.
+    function hasServerTime() {
+      return request.resource.data.updatedAt == request.time;
+    }
+
+    // ---- users/{userId} : profiles ---------------------------------------
+    match /users/{userId} {
+      allow read: if isSignedIn() && (uid() == userId || isStaff());
+
+      // A student may create only their OWN profile and may not self-assign a
+      // privileged role.
+      allow create: if isSignedIn()
+                    && uid() == userId
+                    && request.resource.data.uid == userId
+                    && request.resource.data.role == 'student';
+
+      // Owner may edit their profile but NOT change their role (no privilege
+      // escalation). Admins may change anything.
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && uid() == userId
+                        && request.resource.data.role == resource.data.role);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- geofences/{id} : reference data, read-only for students ---------
+    match /geofences/{geofenceId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---- rotations/{scheduleId} : reference data, read-only for students -
+    match /rotations/{scheduleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---- attendance/{uid_date} : one doc per student per day -------------
+    match /attendance/{docId} {
+      // `resource` is null for a doc that does not exist yet, and dereferencing
+      // null denies the read — so short-circuit first. Allowing the miss leaks
+      // nothing (there is no data), and the owner's listener attaches at 06:30
+      // before the first check-in creates the document.
+      allow read: if isSignedIn()
+                  && (resource == null || resource.data.uid == uid() || isStaff());
+
+      // Deterministic id enforces `${uid}_${date}`: a student can only create
+      // their own document and cannot forge the owner field. `hasServerTime()`
+      // rejects a tampered device clock (see the helper).
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == uid()
+                    && docId == uid() + '_' + request.resource.data.date
+                    && hasServerTime();
+
+      // Owner merges later phases in; the owner field is immutable and every
+      // merge must re-stamp `updatedAt` from the server clock.
+      allow update: if isSignedIn()
+                    && resource.data.uid == uid()
+                    && request.resource.data.uid == uid()
+                    && hasServerTime();
+
+      // Attendance is an audit trail — never client-deletable. Corrections go
+      // through admin tooling / the console.
+      allow delete: if false;
+    }
+
+    // ---- talim_summaries/{date_kelas} : one summary per class per Friday ----
+    // Written by the class rep for their OWN class; read by that class + staff.
+    match /talim_summaries/{docId} {
+      // Same null short-circuit as attendance: observeSummary attaches before the
+      // rep has submitted, so a missing document must not be a denial.
+      allow read: if isSignedIn()
+                  && (resource == null || resource.data.kelas == myKelas() || isStaff());
+
+      // Deterministic id enforces `${date}_${kelas}` (TalimSummary.docIdFor), so a
+      // rep cannot file a summary under another class's slot or forge the author.
+      allow create, update: if isAdmin()
+                            || (isClassRep()
+                                && request.resource.data.kelas == myKelas()
+                                && request.resource.data.submittedByUid == uid()
+                                && docId == request.resource.data.date + '_' + request.resource.data.kelas);
+
+      // Corrections go through admin tooling, not the client.
+      allow delete: if isAdmin();
+    }
+
+    // ---- senam_sessions/{weekId} : the week's video, instructor-managed ----
+    match /senam_sessions/{weekId} {
+      // Reference data: every signed-in user follows the routine on Home.
+      allow read: if isSignedIn();
+
+      allow create, update: if isAdmin()
+                            || (isInstructor()
+                                && request.resource.data.setByUid == uid()
+                                && request.resource.data.weekId == weekId);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- larkam_runs/{runId} : append-only run log (auto-id) --------------
+    match /larkam_runs/{runId} {
+      allow read: if isSignedIn()
+                  && (resource.data.userId == uid() || isStaff());
+
+      // A student logs only their own run; the owner field cannot be forged.
+      allow create: if isSignedIn() && request.resource.data.userId == uid();
+
+      // A finished run is evidence — never client-editable or client-deletable.
+      allow update, delete: if false;
+    }
+
+    // Anything not matched above is denied by default.
+  }
+}

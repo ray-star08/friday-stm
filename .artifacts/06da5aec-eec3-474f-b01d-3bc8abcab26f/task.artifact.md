@@ -1,0 +1,15 @@
+- [x] Build & Dependency Downgrades
+    - [x] Downgrade `compileSdk` and `targetSdk` to 35 in `app/build.gradle.kts`.
+    - [x] Downgrade `playServicesLocation` to `21.0.1` in `gradle/libs.versions.toml`.
+    - [x] Downgrade AGP to `8.8.1` in `gradle/libs.versions.toml`.
+    - [x] Verify `namespace` and `applicationId` consistency.
+    - [x] Enable AndroidX/Jetifier in `gradle.properties`.
+- [x] Android Manifest Updates
+    - [x] Add `<queries>` block for `com.google.android.gms` in `AndroidManifest.xml`.
+- [x] Lazy Initialization & Navigation Scoping
+    - [x] Refactor `AppNavHost.kt` for optimized `HomeViewModel` scoping and sharing.
+- [x] UI & Map Optimization
+    - [x] Refactor `GeofenceMiniMap.kt` to move `osmdroid` config to `LaunchedEffect`.
+    - [x] Optimize map `update` block in `GeofenceMiniMap.kt`.
+- [x] Verification
+    - [x] Run `./gradlew assembleDebug`.
