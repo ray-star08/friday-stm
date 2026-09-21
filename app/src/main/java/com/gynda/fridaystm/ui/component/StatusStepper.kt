@@ -77,7 +77,7 @@ enum class StepState { DONE, ACTIVE, UPCOMING }
 
 /** A single node in the stepper: its label resource and current [StepState]. */
 data class AttendanceStep(
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
     val state: StepState,
 )
 

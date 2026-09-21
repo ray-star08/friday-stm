@@ -26,6 +26,7 @@ data class User(
     val kelas: String = "",
     val role: String = UserRole.STUDENT,
     val photoUrl: String = "",
+    val fcmToken: String = "",
 ) {
     /** Typed [Role] for RBAC gating; unknown/blank wire value fails safe to student. */
     @get:com.google.firebase.firestore.Exclude

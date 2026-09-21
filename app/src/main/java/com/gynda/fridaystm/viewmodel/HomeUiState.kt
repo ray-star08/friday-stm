@@ -61,7 +61,7 @@ sealed interface HomeUiState {
     ) : HomeUiState
 
     /** A load failure; [messageResId] is resolved to text in the Composable. */
-    data class Error(@StringRes val messageResId: Int) : HomeUiState
+    data class Error(@param:StringRes val messageResId: Int) : HomeUiState
 }
 
 /**
@@ -92,7 +92,7 @@ sealed interface SubmitStatus {
     data object Idle : SubmitStatus
     data object Submitting : SubmitStatus
     data object Success : SubmitStatus
-    data class Error(@StringRes val messageResId: Int) : SubmitStatus
+    data class Error(@param:StringRes val messageResId: Int) : SubmitStatus
 }
 
 /**

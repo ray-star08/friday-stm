@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    // Annotation processing for Room (@Entity/@Dao codegen via KSP) — KSP
+    // 2.2.10-2.0.2 is the only build compatible with AGP 9 built-in Kotlin.
+    alias(libs.plugins.ksp)
 }
 
 // Secrets kept out of source (SKILL.md §8): put the following in local.properties
@@ -79,10 +82,11 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // --- Firebase (BOM manages versions) ---
-    // No firebase-storage: selfie evidence goes to Cloudinary (see CloudinaryUploader).
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.messaging)
 
     // --- Coroutines (+ Firebase Task.await()) ---
     implementation(libs.kotlinx.coroutines.android)
@@ -112,9 +116,16 @@ dependencies {
     // is added to actually supply the ListenableFuture class (CameraPreview.kt).
     implementation(libs.guava)
 
+    // --- Offline presensi queue: Room (pending store) + WorkManager (auto-sync) ---
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
+
     // --- Unit test ---
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation("org.robolectric:robolectric:4.13")
 
     // --- Instrumented / UI test ---
     androidTestImplementation(platform(libs.androidx.compose.bom))

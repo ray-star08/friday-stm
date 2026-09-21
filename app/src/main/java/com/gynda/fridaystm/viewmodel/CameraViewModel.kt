@@ -75,7 +75,7 @@ sealed interface CameraUiState {
     data object Capturing : CameraUiState
 
     /** Photo taken, awaiting user confirm/retake. [errorResId] set after a failed upload. */
-    data class Review(val bitmap: Bitmap, @StringRes val errorResId: Int? = null) : CameraUiState
+    data class Review(val bitmap: Bitmap, @param:StringRes val errorResId: Int? = null) : CameraUiState
 
     /** Upload in flight. */
     data class Uploading(val bitmap: Bitmap) : CameraUiState

@@ -28,6 +28,7 @@ import com.gynda.fridaystm.domain.activityForGrade
 import com.gynda.fridaystm.domain.distanceMeters
 import com.gynda.fridaystm.domain.isInsideGeofence
 import com.gynda.fridaystm.domain.resolvePhase
+import com.gynda.fridaystm.util.DebugTimeProvider
 import com.gynda.fridaystm.util.LocationFix
 import com.gynda.fridaystm.util.LocationProvider
 import com.gynda.fridaystm.util.SelfiePhase
@@ -47,6 +48,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -79,13 +81,20 @@ class HomeViewModel(
      * [PHASE_TICK_MS] against injected time, so the 06:30 Apel→Pembiasaan flip
      * happens on its own. `distinctUntilChanged` keeps downstream recomputation
      * to actual phase changes, not every tick.
+     *
+     * When [timeProvider] is a [DebugTimeProvider], the flow is driven reactively
+     * by its [DebugTimeProvider.simulatedTime] so demo controls take effect instantly
+     * (no 30s wait). Otherwise it falls back to the polling ticker.
      */
-    private val phaseFlow: Flow<FridayPhase> = flow {
-        while (true) {
-            emit(resolvePhase(timeProvider.now()))
-            delay(PHASE_TICK_MS)
-        }
-    }.distinctUntilChanged()
+    private val phaseFlow: Flow<FridayPhase> = when (timeProvider) {
+        is DebugTimeProvider -> timeProvider.simulatedTime.map { resolvePhase(it) }
+        else -> flow {
+            while (true) {
+                emit(resolvePhase(timeProvider.now()))
+                delay(PHASE_TICK_MS)
+            }
+        }.distinctUntilChanged()
+    }
 
     /**
      * One shared auth-state stream feeding both the profile and record flows, so
@@ -99,10 +108,38 @@ class HomeViewModel(
         if (uid == null) flowOf(null) else authRepository.observeUserProfile(uid)
     }
 
-    private val recordFlow: Flow<AttendanceRecord?> = uidFlow.flatMapLatest { uid ->
-        if (uid == null) flowOf(null)
-        else attendanceRepository.observeTodayRecord(uid, todayIso())
+    // --- Debug-aware date/week streams ------------------------------------
+    // When running under DebugTimeProvider we must re-derive today/week from the
+    // simulated clock so Firestore queries and the cyclic rotation re-fire instantly.
+    private val todayFlow: Flow<String> = when (timeProvider) {
+        is DebugTimeProvider -> timeProvider.simulatedTime.map { it.toLocalDate().toString() }
+        else -> flow {
+            while (true) {
+                emit(timeProvider.today().toString())
+                delay(PHASE_TICK_MS)
+            }
+        }.distinctUntilChanged()
     }
+
+    private val weekIdFlow: Flow<String> = when (timeProvider) {
+        is DebugTimeProvider -> timeProvider.simulatedTime.map {
+            val year = it.get(java.time.temporal.WeekFields.ISO.weekBasedYear())
+            val week = it.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())
+            "%d-W%02d".format(year, week)
+        }
+        else -> flow {
+            while (true) {
+                emit(timeProvider.weekId())
+                delay(PHASE_TICK_MS)
+            }
+        }.distinctUntilChanged()
+    }
+
+    private val recordFlow: Flow<AttendanceRecord?> = combine(uidFlow, todayFlow) { uid, date -> uid to date }
+        .flatMapLatest { (uid, date) ->
+            if (uid == null) flowOf(null)
+            else attendanceRepository.observeTodayRecord(uid, date)
+        }
 
     /** Read-only reference fences; empty until the collection loads. */
     private val geofencesFlow: Flow<List<Geofence>> = geofenceRepository.observeGeofences()
@@ -112,22 +149,13 @@ class HomeViewModel(
      * `null` when none exists — which is the normal case, since the cyclic formula
      * covers every ordinary week.
      *
-     * The week key is read at subscription time rather than re-derived per tick: an
-     * override is published for a *coming* Friday, and the screen is recreated many
-     * times before a week boundary is crossed mid-session.
-     *
-     * `onStart { emit(null) }` makes this **non-blocking**: the screen renders from
-     * the cyclic formula immediately instead of showing a spinner until Firestore
-     * (or its offline cache) answers. When a real override lands it recomputes in
-     * place and the "Jadwal Khusus" badge appears. This is the loading decision for
-     * 3.3 — the optional override never gates [HomeUiState.Loading].
-     *
-     * ponytail: single-week granularity. If a holiday ever needs to span weeks,
-     * make the repository resolve a date range instead of one document id.
+     * When [timeProvider] is a [DebugTimeProvider] the weekId is observed reactively
+     * so the override + cyclic formula re-evaluate on `advanceWeek()` without a restart.
+     * `onStart { emit(null) }` keeps the initial frame non-blocking (task 3.3).
      */
-    private val rotationFlow: Flow<RotationSchedule?> = flow {
-        emitAll(rotationRepository.observeActiveSchedule(timeProvider.weekId()))
-    }.onStart { emit(null) }
+    private val rotationFlow: Flow<RotationSchedule?> = weekIdFlow
+        .flatMapLatest { weekId -> rotationRepository.observeActiveSchedule(weekId) }
+        .onStart { emit(null) }
 
     /**
      * The two read-only reference streams, merged so the state [combine] below
@@ -261,6 +289,9 @@ class HomeViewModel(
     }
 
     fun signOut() = authRepository.signOut()
+
+    /** Exposed only for the debug overlay — `null` in release / when not using [DebugTimeProvider]. */
+    val debugTimeProvider: DebugTimeProvider? get() = timeProvider as? DebugTimeProvider
 
     // --- Internals --------------------------------------------------------
 

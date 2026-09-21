@@ -1,5 +1,8 @@
 package com.gynda.fridaystm.ui.screen
 
+import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,23 +17,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.gynda.fridaystm.R
@@ -61,6 +78,7 @@ fun HistoryContent(
     state: HistoryUiState,
     modifier: Modifier = Modifier,
 ) {
+    var selected by remember { mutableStateOf<AttendanceRecord?>(null) }
     when (state) {
         HistoryUiState.Loading -> CenteredSpinner(modifier)
         HistoryUiState.Empty -> CenteredMessage(stringResource(R.string.history_empty), modifier)
@@ -71,9 +89,12 @@ fun HistoryContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.records, key = { it.docId }) { record ->
-                AttendanceHistoryCard(record)
+                AttendanceHistoryCard(record, onClick = { selected = record })
             }
         }
+    }
+    selected?.let { rec ->
+        AttendanceDetailDialog(record = rec, onDismiss = { selected = null })
     }
 }
 
@@ -85,8 +106,14 @@ fun HistoryContent(
 private fun AttendanceHistoryCard(
     record: AttendanceRecord,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 text = record.date,
@@ -183,6 +210,67 @@ private fun ValidityBadge(valid: Boolean, modifier: Modifier = Modifier) {
             color = content,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
+    }
+}
+
+/** Fullscreen detail for one attendance day — large selfies + map open. */
+@Composable
+private fun AttendanceDetailDialog(
+    record: AttendanceRecord,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                Text(record.date, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Kelas ${record.grade} • ${record.status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(16.dp))
+                record.apel?.takeIf { it.checkedIn }?.let { apel ->
+                    Text(stringResource(R.string.step_apel), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    if (apel.selfieUrl.isNotBlank()) {
+                        AsyncImage(model = apel.selfieUrl, contentDescription = "Selfie Apel", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text(stringResource(R.string.history_phase_time, apel.time), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.history_phase_location, apel.lat, apel.lng), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                        ValidityBadge(apel.valid)
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = {
+                            val uri = "geo:${apel.lat},${apel.lng}?q=${apel.lat},${apel.lng}".toUri()
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
+                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Maps") }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                record.pembiasaan?.takeIf { it.checkedIn }?.let { pemb ->
+                    Text(pembiasaanLabel(pemb.activity), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    if (pemb.selfieUrl.isNotBlank()) {
+                        AsyncImage(model = pemb.selfieUrl, contentDescription = "Selfie Pembiasaan", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text(stringResource(R.string.history_phase_time, pemb.time), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.history_phase_location, pemb.lat, pemb.lng), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                        ValidityBadge(pemb.valid)
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = {
+                            val uri = "geo:${pemb.lat},${pemb.lng}?q=${pemb.lat},${pemb.lng}".toUri()
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
+                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Maps") }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                record.checkout?.takeIf { it.checkedOut }?.let { co ->
+                    Text("Check-out: ${co.time}", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(12.dp))
+                }
+                Text("Tap di luar untuk tutup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
     }
 }
 

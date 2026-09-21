@@ -109,11 +109,36 @@
 
     <!-- Profile (Milestone 5.2) -->
     <string name="profile_error_generic">Gagal memuat profil.</string>
+    <string name="profile_title">Profil</string>
     <string name="profile_nis">NIS</string>
+    <string name="profile_nisn">NISN</string>
     <string name="profile_kelas">Kelas</string>
     <string name="profile_grade">Angkatan</string>
     <string name="profile_logout">Keluar</string>
     <string name="cd_profile_photo">Foto profil</string>
+
+    <!-- Profile stats summary -->
+    <string name="profile_stats_title">Ringkasan</string>
+    <string name="profile_stats_hadir">Hadir</string>
+    <string name="profile_stats_hadir_unit">Total Hari</string>
+    <string name="profile_stats_larkam">Larkam</string>
+    <string name="profile_stats_larkam_unit">Total KM</string>
+    <string name="profile_stats_izin">Izin</string>
+    <string name="profile_stats_izin_unit">Total Berkas</string>
+
+    <!-- Profile account info -->
+    <string name="profile_account_title">Informasi Akun</string>
+    <string name="profile_email">Email</string>
+    <string name="profile_status">Status Akun</string>
+    <string name="profile_status_active">Aktif</string>
+    <string name="profile_school">Sekolah</string>
+    <string name="profile_school_name">SMK Negeri 1 Cimahi</string>
+
+    <!-- Profile logout -->
+    <string name="profile_logout_title">Keluar Akun</string>
+    <string name="profile_logout_confirm">Apakah Anda yakin ingin keluar?</string>
+    <string name="profile_logout_yes">Ya, Keluar</string>
+    <string name="profile_logout_cancel">Batal</string>
 
     <!-- MiniMap (Milestone 5.1) -->
     <string name="cd_minimap">Peta lokasi geofence</string>
@@ -161,4 +186,54 @@
     <string name="larkam_save_success">Aktivitas lari berhasil disimpan</string>
     <string name="larkam_hint">Tekan Mulai lalu berlari; jarak &amp; durasi terhitung otomatis.</string>
     <string name="cd_larkam_map">Peta rute lari</string>
+
+    <!-- Pengajuan Izin / Sakit (izin_records + Storage permits/) -->
+    <string name="izin_title">Pengajuan Izin / Sakit</string>
+    <string name="izin_cd_back">Kembali</string>
+    <string name="izin_tipe_label">Tipe Pengajuan</string>
+    <string name="izin_tipe_sakit">Sakit</string>
+    <string name="izin_tipe_izin">Izin</string>
+    <string name="izin_start_label">Tanggal Mulai</string>
+    <string name="izin_end_label">Tanggal Selesai</string>
+    <string name="izin_date_ok">OK</string>
+    <string name="izin_date_cancel">Batal</string>
+    <string name="izin_alasan_label">Alasan</string>
+    <string name="izin_alasan_hint">Contoh: Demam tinggi dan disarankan dokter untuk istirahat 2 hari.</string>
+    <string name="izin_alasan_counter">%1$d / %2$d karakter</string>
+    <string name="izin_proof_label">Bukti Surat</string>
+    <string name="izin_proof_hint">Lampirkan foto surat dokter / surat orang tua sebagai bukti.</string>
+    <string name="izin_proof_pick">Pilih Bukti Surat</string>
+    <string name="izin_proof_change">Ganti</string>
+    <string name="izin_proof_remove">Hapus</string>
+    <string name="izin_cd_proof_preview">Pratinjau bukti surat izin</string>
+    <string name="izin_submit">Kirim Pengajuan</string>
+    <string name="izin_submit_loading">Mengirim…</string>
+    <string name="izin_open">Pengajuan Izin</string>
+
+    <!-- Offline presensi queue (Room + WorkManager auto-sync) -->
+    <string name="offline_queue_banner">%1$d Presensi Menunggu Sinyal</string>
+    <string name="offline_queue_sync">Sinkronkan</string>
+    <string name="offline_queue_cd">Antrean presensi offline</string>
+    <string name="presensi_queued_title">Tersimpan Offline</string>
+    <string name="presensi_queued_body">Tidak ada sinyal. Presensi tersimpan di perangkat dan akan terkirim otomatis saat online.</string>
+
+    <!-- FCM presensi reminders -->
+    <string name="fcm_channel_name">Pengingat Presensi</string>
+
+    <!-- Teacher Dashboard -->
+    <string name="teacher_dashboard_title">Dashboard Guru</string>
+    <string name="teacher_dashboard_subtitle">Monitoring kehadiran siswa real-time</string>
+    <string name="teacher_dashboard_list_title">Daftar Siswa (%1$d)</string>
+    <string name="teacher_dashboard_empty">Belum ada data siswa untuk kelas ini</string>
+    <string name="teacher_filter_kelas">Kelas</string>
+    <string name="teacher_stat_hadir">Hadir</string>
+    <string name="teacher_stat_izin">Izin/Sakit</string>
+    <string name="teacher_stat_belum">Belum Absen</string>
+    <string name="teacher_stat_larkam">Total Larkam</string>
+    <string name="teacher_detail_foto">Bukti Foto</string>
+    <string name="teacher_detail_lokasi">Lokasi GPS Presensi</string>
+
+    <!-- Izin Approval (Wali Kelas) -->
+    <string name="izin_approval_title">Persetujuan Izin</string>
+    <string name="izin_approval_empty">Tidak ada pengajuan</string>
 </resources>

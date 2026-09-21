@@ -23,6 +23,13 @@ interface AuthRepository {
     val currentUid: String?
 
     /**
+     * Email of the signed-in Firebase user, or `null` when signed out /
+     * unavailable. Shown on the Profile screen (account info section).
+     */
+    val currentEmail: String?
+        get() = null
+
+    /**
      * Streams the current uid, re-emitting on every sign-in / sign-out.
      * Emits `null` while signed out.
      */
@@ -60,6 +67,9 @@ class FirebaseAuthRepository(
 
     override val currentUid: String?
         get() = auth.currentUser?.uid
+
+    override val currentEmail: String?
+        get() = auth.currentUser?.email
 
     override fun observeAuthState(): Flow<String?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->

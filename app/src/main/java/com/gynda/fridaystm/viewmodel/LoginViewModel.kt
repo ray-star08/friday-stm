@@ -27,7 +27,7 @@ data class LoginUiState(
     val email: String = "",
     val password: String = "",
     val submitting: Boolean = false,
-    @StringRes val errorResId: Int? = null,
+    @param:StringRes val errorResId: Int? = null,
     val success: Boolean = false,
 ) {
     /** The button is only actionable with both fields filled and no call in flight. */

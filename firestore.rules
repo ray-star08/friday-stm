@@ -176,15 +176,56 @@ service cloud.firestore {
     }
 
     // ---- larkam_runs/{runId} : append-only run log (auto-id) --------------
+    // Append-only & strictly per-user isolated: a run is readable/writable only by
+    // its owner. No staff bypass, no cross-user reads — enforced at the rule layer.
     match /larkam_runs/{runId} {
-      allow read: if isSignedIn()
-                  && (resource.data.userId == uid() || isStaff());
+      allow read: if isSignedIn() && resource.data.userId == uid();
 
-      // A student logs only their own run; the owner field cannot be forged.
+      // Owner field cannot be forged — create succeeds only when the new doc's
+      // userId equals the authenticated uid.
       allow create: if isSignedIn() && request.resource.data.userId == uid();
 
       // A finished run is evidence — never client-editable or client-deletable.
       allow update, delete: if false;
+    }
+
+    // ---- larkam_records/{docId} : selfie-finish Larkam (auto-id) -----------
+    // Ditulis `PresensiCameraViewModel` saat finish selfie Larkam (berisi
+    // `distanceKm`, …). Append-only milik sendiri; dibaca pemilik untuk
+    // agregat statistik Profil dan oleh guru/admin untuk dashboard monitoring.
+    // Koreksi via admin tooling.
+    match /larkam_records/{docId} {
+      allow create: if isSignedIn() && request.resource.data.userId == uid();
+      allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
+      allow update, delete: if false;
+    }
+
+    // ---- presensi/{docId} : alias legacy for presensi_records (spec wording) ---
+    // Allows teacher dashboard spec collection `presensi` filtered by kelas/tanggal.
+    match /presensi/{docId} {
+      allow create, read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // ---- presensi_records/{docId} : watermarked selfie presensi ------------
+    match /presensi_records/{docId} {
+      allow create, read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // ---- izin_records/{docId} : pengajuan izin/sakit (auto-id) ---------------
+    // Siswa membuat pengajuan miliknya sendiri (status awal wajib PENDING,
+    // owner field tak boleh dipalsukan); membaca hanya miliknya sendiri.
+    // Staf (guru/admin) membaca lintas siswa untuk rekap/verifikasi; kabar
+    // persetujuan (APPROVED/REJECTED) hanya lewat staf/admin tooling.
+    match /izin_records/{docId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == uid()
+                    && request.resource.data.status == 'PENDING';
+      allow read: if isSignedIn()
+                  && (resource.data.userId == uid() || isStaff());
+      allow update: if isStaff();
+      allow delete: if isAdmin();
     }
 
     // Anything not matched above is denied by default.

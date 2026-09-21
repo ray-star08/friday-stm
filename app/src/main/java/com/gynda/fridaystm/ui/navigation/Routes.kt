@@ -28,6 +28,24 @@ sealed interface Routes {
 
     /** Larkam run tracker — live map + duration/distance, logs to Firestore (Activity 4). */
     data object Larkam : Routes { override val route = "larkam" }
+
+    /** Presensi selfie with watermark + Storage upload (watermarked presensi). */
+    data object PresensiCamera : Routes { override val route = "presensi_camera" }
+
+    /** Presensi history list (watermarked) */
+    data object PresensiHistory : Routes { override val route = "presensi_history" }
+
+    /** Form pengajuan izin/sakit + upload bukti surat (`izin_records`). */
+    data object PengajuanIzin : Routes { override val route = "pengajuan_izin" }
+
+    /** Dashboard guru/admin — monitoring real-time per kelas/tanggal. */
+    data object TeacherDashboard : Routes { override val route = "teacher_dashboard" }
+
+    /** Persetujuan izin oleh wali kelas (filter + approve/reject). */
+    data object IzinApproval : Routes { override val route = "izin_approval" }
+
+    /** Export rekap kehadiran & larkam (PDF/CSV). */
+    data object ExportReport : Routes { override val route = "export_report" }
 }
 
 /**

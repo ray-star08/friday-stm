@@ -48,14 +48,17 @@ import org.osmdroid.views.overlay.Polyline
 
 /**
  * Larkam — stateful holder. Owns the [LarkamViewModel], renders the live run
- * (map + duration/distance) and a Start/Stop control. On a saved run it shows a
- * Toast confirmation and a "done" button back to Home (raised via [onDone]).
+ * (map + duration/distance + pace) and controls Mulai/Jeda/Selesai & Selfie.
+ * On a saved run it shows a Toast and navigates via [onDone].
+ * For spec: "Selesai & Selfie" navigates to PresensiCameraScreen with payload,
+ * the ViewModel's watermark will be applied there.
  */
 @Composable
 fun LarkamTrackingScreen(
     viewModel: LarkamViewModel,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onFinishSelfie: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -63,11 +66,17 @@ fun LarkamTrackingScreen(
         if (state.status == RunStatus.Saved) {
             Toast.makeText(context, context.getString(R.string.larkam_save_success), Toast.LENGTH_SHORT).show()
         }
+        if (state.status == RunStatus.Finished && onFinishSelfie != null) {
+            onFinishSelfie()
+        }
     }
     LarkamContent(
         state = state,
         onStart = viewModel::onStart,
+        onPause = viewModel::onPause,
+        onResume = viewModel::onResume,
         onStop = viewModel::onStop,
+        onFinish = viewModel::onFinish,
         onDone = onDone,
         modifier = modifier,
     )
@@ -81,6 +90,10 @@ private fun LarkamContent(
     onStop: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onPause: () -> Unit = {},
+    onResume: () -> Unit = {},
+    onFinish: () -> Unit = {},
+    onFinishSelfie: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -103,9 +116,11 @@ private fun LarkamContent(
         )
         Spacer(Modifier.height(16.dp))
 
+        // Live dashboard: Jarak (KM 2 desimal), Timer (HH:MM:SS), Pace
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             Stat(label = stringResource(R.string.larkam_duration), value = formatElapsed(state.elapsedSec))
             Stat(label = stringResource(R.string.larkam_distance), value = formatDistance(state.distanceMeters))
+            Stat(label = "Pace", value = formatPace(state))
         }
         Spacer(Modifier.height(16.dp))
 
@@ -118,8 +133,33 @@ private fun LarkamContent(
                 }
             }
 
-            RunStatus.Running -> Button(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.larkam_stop))
+            RunStatus.Running -> Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onPause, modifier = Modifier.fillMaxWidth()) {
+                    Text("Jeda")
+                }
+                Button(onClick = onFinish, modifier = Modifier.fillMaxWidth()) {
+                    Text("Selesai & Selfie")
+                }
+            }
+
+            RunStatus.Paused -> Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                CenterHint("Jeda — tap Lanjutkan untuk melanjutkan")
+                Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) {
+                    Text("Lanjutkan")
+                }
+                Button(onClick = onFinish, modifier = Modifier.fillMaxWidth()) {
+                    Text("Selesai & Selfie")
+                }
+            }
+
+            RunStatus.Finished -> Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                CenterHint("Selesai — siap selfie watermark")
+                Button(onClick = { onFinishSelfie?.invoke() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Selfie Sekarang")
+                }
+                OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
+                    Text("Simpan Tanpa Selfie")
+                }
             }
 
             RunStatus.Saving -> CenterHint(stringResource(R.string.larkam_saving))
@@ -162,12 +202,14 @@ private fun CenterHint(text: String, isError: Boolean = false) {
     )
 }
 
-/** mm:ss for a whole-second elapsed count. */
-private fun formatElapsed(sec: Long): String = "%02d:%02d".format(sec / 60, sec % 60)
+/** HH:MM:SS for elapsed count. */
+private fun formatElapsed(sec: Long): String = "%02d:%02d:%02d".format(sec / 3600, (sec % 3600) / 60, sec % 60)
 
-/** Meters when < 1 km, else km with two decimals. */
-private fun formatDistance(meters: Double): String =
-    if (meters < 1_000) "${meters.toInt()} m" else "%.2f km".format(meters / 1_000)
+/** KM with 2 decimals always (spec: 2.45 KM). */
+private fun formatDistance(meters: Double): String = "%.2f km".format(meters / 1000.0)
+
+/** Pace as mm:ss /km */
+private fun formatPace(state: LarkamUiState): String = state.paceFormatted
 
 /**
  * osmdroid map drawing the run so far as a [Polyline] with a marker at the latest

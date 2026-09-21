@@ -26,6 +26,9 @@ enum class Role {
 
     /** May watch the weekly Senam video on the dashboard (everyone except instructor). */
     val canViewSenam: Boolean get() = this != INSTRUCTOR
+
+    /** Teacher dashboard access: GURU/ADMIN only (spec: role == GURU || ADMIN). */
+    val isTeacherOrAdmin: Boolean get() = this == INSTRUCTOR || this == ADMIN
 }
 
 /**
@@ -33,10 +36,10 @@ enum class Role {
  * (fail-safe least privilege). Kept out of the data layer's constants so the
  * mapping table lives with the access rules it feeds.
  */
-fun roleFromWire(value: String): Role = when (value) {
-    "student" -> Role.STUDENT
-    "class_rep" -> Role.CLASS_REP
-    "instructor" -> Role.INSTRUCTOR
+fun roleFromWire(value: String): Role = when (value.lowercase().trim()) {
+    "student", "siswa", "murid", "siswi" -> Role.STUDENT
+    "class_rep", "class-rep", "ketua_kelas" -> Role.CLASS_REP
+    "instructor", "guru", "pengajar" -> Role.INSTRUCTOR
     "admin" -> Role.ADMIN
     else -> Role.STUDENT
 }

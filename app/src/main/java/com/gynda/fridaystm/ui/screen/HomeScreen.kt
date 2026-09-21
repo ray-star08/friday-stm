@@ -2,6 +2,7 @@ package com.gynda.fridaystm.ui.screen
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
@@ -23,8 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
@@ -32,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -73,7 +80,9 @@ import com.gynda.fridaystm.ui.component.TalimCard
 import com.gynda.fridaystm.ui.component.activityLabelRes
 import com.gynda.fridaystm.ui.component.openAppSettings
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
+import com.gynda.fridaystm.BuildConfig
 import com.gynda.fridaystm.util.ActivityType
+import com.gynda.fridaystm.util.DebugTimeProvider
 import com.gynda.fridaystm.util.LocationGateResult
 import com.gynda.fridaystm.util.LocationPermissionState
 import com.gynda.fridaystm.util.reducePermissionResult
@@ -81,6 +90,7 @@ import com.gynda.fridaystm.util.resolveLocationGate
 import com.gynda.fridaystm.viewmodel.HomeAction
 import com.gynda.fridaystm.viewmodel.HomeUiState
 import com.gynda.fridaystm.viewmodel.HomeViewModel
+import com.gynda.fridaystm.viewmodel.OfflineQueueViewModel
 import com.gynda.fridaystm.viewmodel.SenamUiState
 import com.gynda.fridaystm.viewmodel.SenamViewModel
 import com.gynda.fridaystm.viewmodel.SubmitStatus
@@ -89,6 +99,7 @@ import com.gynda.fridaystm.viewmodel.TalimViewModel
 import kotlin.math.roundToInt
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Home — stateful holder (SKILL.md §4.1).
@@ -108,7 +119,11 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     senamViewModel: SenamViewModel,
     talimViewModel: TalimViewModel,
+    offlineQueueViewModel: OfflineQueueViewModel,
     onOpenLarkam: () -> Unit = {},
+    onNavigateToPresensiCamera: () -> Unit = {},
+    onOpenPresensiHistory: () -> Unit = {},
+    onOpenPengajuanIzin: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -117,6 +132,7 @@ fun HomeScreen(
     val senamSetStatus by senamViewModel.setStatus.collectAsStateWithLifecycle()
     val talimState by talimViewModel.uiState.collectAsStateWithLifecycle()
     val talimSubmitStatus by talimViewModel.submitStatus.collectAsStateWithLifecycle()
+    val pendingCount by offlineQueueViewModel.pendingCount.collectAsStateWithLifecycle()
 
     // Route to Login exactly once when the session resolves to signed-out.
     val signedOut = uiState is HomeUiState.SignedOut
@@ -137,6 +153,22 @@ fun HomeScreen(
         locationPermanentlyDenied = state.isPermanentlyDenied
     }
 
+    // FCM: POST_NOTIFICATIONS (API 33+) — requested once when entering Dashboard
+    // so reminder notifications (presensi/larkam) can be shown heads-up.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ -> /* best-effort; system drops posts when denied */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     // Only prompt while an active geofenced check-in actually needs location, and
     // only once per grant state — never on a non-check-in phase (SKILL.md §8).
     val needsLocation = (uiState as? HomeUiState.Ready)?.action is HomeAction.CheckInPembiasaan
@@ -151,24 +183,51 @@ fun HomeScreen(
         }
     }
 
-    HomeContent(
-        state = uiState,
-        submitStatus = submitStatus,
-        senamState = senamState,
-        senamSetStatus = senamSetStatus,
-        talimState = talimState,
-        talimSubmitStatus = talimSubmitStatus,
-        locationGranted = locationGranted,
-        locationPermanentlyDenied = locationPermanentlyDenied,
-        onRequestLocationPermission = { locationPermissionLauncher.launch(LOCATION_PERMISSIONS) },
-        onOpenLocationSettings = { context.openAppSettings() },
-        onPembiasaanCheckIn = onNavigateToCheckIn,
-        onCheckOut = viewModel::onCheckOut,
-        onSetSenamVideo = senamViewModel::onSetVideo,
-        onSubmitTalim = talimViewModel::onSubmit,
-        onOpenLarkam = onOpenLarkam,
-        modifier = modifier,
-    )
+    // A submitted check-in/out reports Success once; fire a confirm haptic then
+    // consume it so it can't re-fire on recomposition. The button itself flips to
+    // its "done" state via the record stream, so no success text is rendered here.
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(submitStatus) {
+        if (submitStatus is SubmitStatus.Success) {
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+            viewModel.onSubmitStatusConsumed()
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        HomeContent(
+            state = uiState,
+            submitStatus = submitStatus,
+            senamState = senamState,
+            senamSetStatus = senamSetStatus,
+            talimState = talimState,
+            talimSubmitStatus = talimSubmitStatus,
+            locationGranted = locationGranted,
+            locationPermanentlyDenied = locationPermanentlyDenied,
+            onRequestLocationPermission = { locationPermissionLauncher.launch(LOCATION_PERMISSIONS) },
+            onOpenLocationSettings = { context.openAppSettings() },
+            onPembiasaanCheckIn = onNavigateToCheckIn,
+            onCheckOut = viewModel::onCheckOut,
+            onSetSenamVideo = senamViewModel::onSetVideo,
+            onSubmitTalim = talimViewModel::onSubmit,
+            onOpenLarkam = onOpenLarkam,
+            onNavigateToPresensiCamera = onNavigateToPresensiCamera,
+            onOpenPresensiHistory = onOpenPresensiHistory,
+            onOpenPengajuanIzin = onOpenPengajuanIzin,
+            pendingCount = pendingCount,
+            onSyncNow = offlineQueueViewModel::syncNow,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (BuildConfig.DEBUG) {
+            val debugProvider = viewModel.debugTimeProvider
+            if (debugProvider != null) {
+                DebugControlBar(
+                    debugProvider = debugProvider,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+        }
+    }
 }
 
 /** Location permissions requested together; either grants a usable fix. */
@@ -205,6 +264,11 @@ fun HomeContent(
     onRequestLocationPermission: () -> Unit = {},
     onOpenLocationSettings: () -> Unit = {},
     onOpenLarkam: () -> Unit = {},
+    onNavigateToPresensiCamera: () -> Unit = {},
+    onOpenPresensiHistory: () -> Unit = {},
+    onOpenPengajuanIzin: () -> Unit = {},
+    pendingCount: Int = 0,
+    onSyncNow: () -> Unit = {},
 ) {
     // Smooth fade between Loading / Ready / Error rather than a hard swap (M5.3).
     Crossfade(targetState = state, label = "home-state", modifier = modifier) { s ->
@@ -231,6 +295,11 @@ fun HomeContent(
                 onSetSenamVideo = onSetSenamVideo,
                 onSubmitTalim = onSubmitTalim,
                 onOpenLarkam = onOpenLarkam,
+                onNavigateToPresensiCamera = onNavigateToPresensiCamera,
+                onOpenPresensiHistory = onOpenPresensiHistory,
+                onOpenPengajuanIzin = onOpenPengajuanIzin,
+                pendingCount = pendingCount,
+                onSyncNow = onSyncNow,
             )
         }
     }
@@ -253,6 +322,11 @@ private fun ReadyContent(
     onSetSenamVideo: (String) -> Unit,
     onSubmitTalim: (String, String, String) -> Unit,
     onOpenLarkam: () -> Unit,
+    onNavigateToPresensiCamera: () -> Unit = {},
+    onOpenPresensiHistory: () -> Unit = {},
+    onOpenPengajuanIzin: () -> Unit = {},
+    pendingCount: Int = 0,
+    onSyncNow: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val submitting = submitStatus is SubmitStatus.Submitting
@@ -270,6 +344,16 @@ private fun ReadyContent(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(20.dp))
+
+        // Offline queue banner: visible only while captures await signal.
+        if (pendingCount > 0) {
+            OfflineQueueBanner(
+                count = pendingCount,
+                onSyncNow = onSyncNow,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
 
         DynamicPhaseCard(
             phase = state.phase,
@@ -400,6 +484,53 @@ private fun ReadyContent(
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // Presensi Camera entry point (Dashboard) — navigates to Screen.PresensiCamera
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onNavigateToPresensiCamera,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.Face, contentDescription = null)
+            Text(
+                text = "Presensi Selfie",
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+        // Alias "Absen Sekarang" covered via same action for spec compatibility
+        Spacer(Modifier.height(4.dp))
+        TextButton(
+            onClick = onNavigateToPresensiCamera,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Absen Sekarang")
+        }
+
+        // Riwayat Presensi entry point (Dashboard)
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onOpenPresensiHistory,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.DateRange, contentDescription = null)
+            Text(
+                text = "Riwayat Presensi",
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        // Pengajuan Izin / Sakit entry point (Dashboard) — form + bukti surat.
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = onOpenPengajuanIzin,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.Edit, contentDescription = null)
+            Text(
+                text = stringResource(R.string.izin_open),
+                modifier = Modifier.padding(start = 8.dp)
             )
         }
 
@@ -560,7 +691,7 @@ private fun phaseDeadlineLabelRes(phase: FridayPhase): Int = when (phase) {
 /** The four display values for a completed-phase [SelfiePreviewCard], or `null`. */
 private data class PhaseSelfie(
     val url: String,
-    @StringRes val statusRes: Int,
+    @param:StringRes val statusRes: Int,
     val time: String,
     val valid: Boolean,
 )
@@ -575,6 +706,46 @@ private fun currentPhaseSelfie(state: HomeUiState.Ready): PhaseSelfie? = when (s
         ?.let { PhaseSelfie(it.selfieUrl, R.string.status_presensi_kegiatan, it.time, it.valid) }
 
     else -> null
+}
+
+/**
+ * Offline-queue banner shown on the Dashboard while captures await signal:
+ * "N Presensi Menunggu Sinyal" + a manual sync action. Pure UI — the count
+ * comes from [OfflineQueueViewModel.pendingCount] (SKILL.md §3.3).
+ */
+@Composable
+private fun OfflineQueueBanner(
+    count: Int,
+    onSyncNow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(R.string.offline_queue_cd)
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = null, // decorative; the Surface carries the label
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.offline_queue_banner, count),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onSyncNow) {
+                Text(stringResource(R.string.offline_queue_sync))
+            }
+        }
+    }
 }
 
 /**
@@ -624,6 +795,98 @@ private fun CenteredMessage(message: String, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
             )
+        }
+    }
+}
+
+// --- Debug / Demo overlay (only in DEBUG) --------------------------------
+
+/**
+ * Floating debug bar for presentations: lets the presenter jump between
+ * Friday phases and advance the ISO week to demo the 3-week rotation
+ * without changing the device clock. Only rendered when [BuildConfig.DEBUG]
+ * and the injected [TimeProvider] is a [DebugTimeProvider].
+ */
+@Composable
+private fun DebugControlBar(
+    debugProvider: DebugTimeProvider,
+    modifier: Modifier = Modifier,
+) {
+    val simulated by debugProvider.simulatedTime.collectAsStateWithLifecycle()
+    val label = remember(simulated) {
+        simulated.format(DateTimeFormatter.ofPattern("EEE dd-MM HH:mm 'W'w"))
+    }
+    val weekId = remember(simulated) {
+        val y = simulated.get(java.time.temporal.WeekFields.ISO.weekBasedYear())
+        val w = simulated.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())
+        "%d-W%02d".format(y, w)
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.96f),
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = RoundedCornerShape(16.dp),
+        shadowElevation = 6.dp,
+        modifier = modifier
+            .padding(top = 8.dp, start = 12.dp, end = 12.dp)
+            .fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "DEBUG \u00B7 $label \u00B7 $weekId",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                DebugChip(
+                    text = "Jumat 07:00",
+                    onClick = { debugProvider.setFridayPhase(7, 0) },
+                    modifier = Modifier.weight(1f),
+                )
+                DebugChip(
+                    text = "Jumat 08:15",
+                    onClick = { debugProvider.setFridayPhase(8, 15) },
+                    modifier = Modifier.weight(1f),
+                )
+                DebugChip(
+                    text = "+1 Pekan",
+                    onClick = { debugProvider.advanceWeek(1) },
+                    modifier = Modifier.weight(1f),
+                )
+                DebugChip(
+                    text = "Reset",
+                    onClick = { debugProvider.resetToSystem() },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugChip(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(50),
+        modifier = modifier,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            Text(text = text, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
         }
     }
 }

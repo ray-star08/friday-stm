@@ -1,9 +1,15 @@
+@file:Suppress("DEPRECATION")
+
 package com.gynda.fridaystm.ui.component
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -83,16 +89,34 @@ fun GeofenceMiniMap(
         }
     }
 
+    // Track last recenter request to allow free pan between updates (fix "reset after few seconds").
+    var lastCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    var lastRecenterKey by remember { mutableIntStateOf(-1) }
+
     AndroidView(
         modifier = modifier.semantics { contentDescription = description },
-        factory = { mapView },
+        factory = {
+            // Prevent parent verticalScroll from stealing map pan gestures (fix restart on drag).
+            mapView.setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN,
+                    android.view.MotionEvent.ACTION_MOVE -> v.parent.requestDisallowInterceptTouchEvent(true)
+                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_CANCEL -> v.parent.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
+            mapView
+        },
         update = { map ->
             val center = GeoPoint(centerLat, centerLng)
             var needsInvalidate = false
 
             // Update fence geometry only if the target center or radius changed.
+            @Suppress("DEPRECATION")
             val currentPoints = fence.points
             if (currentPoints.isEmpty() || currentPoints[0] != center) {
+                @Suppress("DEPRECATION")
                 fence.points = Polygon.pointsAsCircle(center, radiusMeter.toDouble())
                 needsInvalidate = true
             }
@@ -118,17 +142,20 @@ fun GeofenceMiniMap(
                 needsInvalidate = true
             }
 
-            // Recenter on the user when asked, else keep the fence centered.
+            // Recenter logic: only animate when center or recenterKey changes (free pan otherwise).
             val anchor = if (recenterKey > 0 && userLat != null && userLng != null) {
                 GeoPoint(userLat, userLng)
             } else {
                 center
             }
-            // Avoid redundant animations if we are already close to the anchor.
-            if (map.mapCenter.latitude != anchor.latitude || map.mapCenter.longitude != anchor.longitude) {
-                map.controller.animateTo(anchor)
-                // animateTo triggers its own updates, but we flag for completeness.
-                needsInvalidate = true
+            val shouldRecenter = lastCenter == null || lastCenter != center || lastRecenterKey != recenterKey
+            if (shouldRecenter) {
+                if (map.mapCenter.latitude != anchor.latitude || map.mapCenter.longitude != anchor.longitude) {
+                    map.controller.animateTo(anchor)
+                    needsInvalidate = true
+                }
+                lastCenter = center
+                lastRecenterKey = recenterKey
             }
 
             if (needsInvalidate) {

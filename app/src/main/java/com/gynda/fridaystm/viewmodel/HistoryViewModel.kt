@@ -38,7 +38,7 @@ sealed interface HistoryUiState {
     data object Empty : HistoryUiState
 
     /** A load failure; [messageResId] is resolved to text in the Composable. */
-    data class Error(@StringRes val messageResId: Int) : HistoryUiState
+    data class Error(@param:StringRes val messageResId: Int) : HistoryUiState
 }
 
 /**

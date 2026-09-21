@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -31,23 +31,46 @@ import com.gynda.fridaystm.ui.component.BigActionButton
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
 import com.gynda.fridaystm.viewmodel.LoginUiState
 import com.gynda.fridaystm.viewmodel.LoginViewModel
+import com.gynda.fridaystm.viewmodel.MainNavTarget
+import com.gynda.fridaystm.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Login — stateful holder (SKILL.md §4.1). Owns [LoginViewModel], collects state
- * lifecycle-aware, and navigates once sign-in succeeds.
+ * lifecycle-aware, and navigates once sign-in succeeds — role-aware per spec 1.
  *
- * @param onLoginSuccess invoked exactly once when the user is authenticated.
+ * @param onLoginSuccess legacy single-route callback (fallback)
+ * @param onLoginSuccessStudent GURU/ADMIN check: SISWA → Home
+ * @param onLoginSuccessTeacher GURU/ADMIN → TeacherDashboard
  */
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel,
+    mainViewModel: MainViewModel? = null,
+    onLoginSuccess: (() -> Unit)? = null,
+    onLoginSuccessStudent: (() -> Unit)? = null,
+    onLoginSuccessTeacher: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.success) {
-        if (state.success) onLoginSuccess()
+        if (!state.success) return@LaunchedEffect
+        // Role-aware navigation: use MainViewModel when available, else fallback.
+        if (mainViewModel != null && (onLoginSuccessStudent != null || onLoginSuccessTeacher != null)) {
+            scope.launch {
+                val target = mainViewModel.resolvePostLoginTarget()
+                when (target) {
+                    MainNavTarget.TeacherDashboard -> (onLoginSuccessTeacher ?: onLoginSuccess)?.invoke()
+                    MainNavTarget.StudentHome -> (onLoginSuccessStudent ?: onLoginSuccess)?.invoke()
+                    else -> onLoginSuccess?.invoke() ?: onLoginSuccessStudent?.invoke()
+                }
+            }
+        } else {
+            onLoginSuccess?.invoke()
+            onLoginSuccessStudent?.invoke()
+        }
     }
 
     LoginContent(
@@ -56,6 +79,20 @@ fun LoginScreen(
         onPasswordChange = viewModel::onPasswordChange,
         onSubmit = viewModel::onSubmit,
         modifier = modifier,
+    )
+}
+
+@Deprecated("Use role-aware overload with MainViewModel", ReplaceWith("LoginScreen(modifier, viewModel, mainViewModel, onLoginSuccess)"))
+@Composable
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: LoginViewModel,
+) {
+    LoginScreen(
+        modifier = modifier,
+        viewModel = viewModel,
+        onLoginSuccess = onLoginSuccess,
     )
 }
 

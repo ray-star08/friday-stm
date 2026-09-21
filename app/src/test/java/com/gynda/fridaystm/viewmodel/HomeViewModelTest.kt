@@ -203,6 +203,28 @@ class HomeViewModelTest {
             job.cancel()
         }
 
+    @Test
+    fun `onSubmitStatusConsumed resets a shown status back to Idle`() = runTest(dispatcher) {
+        // The Home UI fires a one-shot success haptic then consumes the status; this
+        // locks the reset contract that keeps it from re-firing on recomposition.
+        val vm = viewModel(
+            time = FakeTimeProvider(fridayCheckout, week),
+            auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
+            attendance = FakeAttendanceRepository(),
+        )
+        val job = launch { vm.uiState.collect {} }
+        runCurrent()
+
+        vm.onCheckOut()
+        runCurrent()
+        assertEquals(SubmitStatus.Success, vm.submitStatus.value)
+
+        vm.onSubmitStatusConsumed()
+        assertEquals(SubmitStatus.Idle, vm.submitStatus.value)
+
+        job.cancel()
+    }
+
     // 40 m Larkam fence at the campus reference point (task.md example).
     private val larkamFence = Geofence(
         id = "lapangan_utama",

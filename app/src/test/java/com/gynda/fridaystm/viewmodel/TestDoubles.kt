@@ -49,11 +49,14 @@ class FakeTimeProvider(
 class FakeAuthRepository(
     private val profiles: Map<String, User> = emptyMap(),
     initialUid: String? = null,
+    private val email: String? = null,
 ) : AuthRepository {
 
     private val authState = MutableStateFlow(initialUid)
 
     override val currentUid: String? get() = authState.value
+
+    override val currentEmail: String? get() = email
 
     override fun observeAuthState(): Flow<String?> = authState
 

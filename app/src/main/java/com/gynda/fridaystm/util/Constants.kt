@@ -1,5 +1,11 @@
 package com.gynda.fridaystm.util
 
+// --- School geofence for presensi selfie (task: Validasi Radius Area Sekolah) ---
+// SMKN 1 Cimahi — Jl. Mahar Martanegara No.48, Leuwigajah (30.129 m² ≈3 ha, 3.4 ha versi STM Pembangunan)
+const val SCHOOL_LATITUDE = -6.902803655711758
+const val SCHOOL_LONGITUDE = 107.53864267712402
+const val MAX_RADIUS_METERS = 180.0f // 180m = 10.2 ha coverage, aman untuk 3 ha + drift GPS 20-30m
+
 /**
  * Single source of truth for Firestore collection names, wire-level string
  * values, asset paths and geofence defaults.
@@ -24,6 +30,12 @@ object FirestoreCollections {
 
     /** Larkam run logs, appended per session (Firestore-only, no external sync). */
     const val LARKAM_RUNS = "larkam_runs"
+
+    /** Presensi selfie records with watermarked photo URL. */
+    const val PRESENSI_RECORDS = "presensi_records"
+
+    /** Pengajuan izin/sakit records — doc auto-id (see `IzinRecord`). */
+    const val IZIN_RECORDS = "izin_records"
 }
 
 /**
@@ -61,6 +73,18 @@ object UserRole {
     const val CLASS_REP = "class_rep"
     const val INSTRUCTOR = "instructor"
     const val ADMIN = "admin"
+    // Spec aliases (GURU/SISWA) — lowercased at parsing, both accepted.
+    const val GURU = "guru"
+    const val SISWA = "siswa"
+}
+
+/** Available class options for teacher filter (centralized, no magic strings). */
+object TeacherDashboardDefaults {
+    val AVAILABLE_CLASSES = listOf(
+        "XI RPL A", "XI RPL B", "XI TKJ A", "XI TKJ B",
+        "X RPL A", "X RPL B", "XII RPL A", "XII RPL B",
+    )
+    const val DEFAULT_CLASS = "XI RPL A"
 }
 
 /**
@@ -86,6 +110,45 @@ object AttendanceStatus {
     const val INCOMPLETE = "incomplete"
     const val COMPLETE = "complete"
     const val FLAGGED = "flagged"
+}
+
+/**
+ * Wire values for `izin_records.tipe` — jenis pengajuan.
+ *
+ * Stored as plain strings on the wire so Firestore deserialization never
+ * crashes on an unknown value; the typed `IzinType` enum maps to/from these.
+ */
+object IzinTypeValue {
+    const val SAKIT = "SAKIT"
+    const val IZIN = "IZIN"
+}
+
+/** Values for `izin_records.status`. */
+object IzinStatus {
+    const val PENDING = "PENDING"
+    const val APPROVED = "APPROVED"
+    const val REJECTED = "REJECTED"
+    const val ALL = "ALL"
+}
+
+/** Status filter for approval screen tabs. */
+enum class ApprovalFilter(val wireValue: String) {
+    PENDING(IzinStatus.PENDING),
+    APPROVED(IzinStatus.APPROVED),
+    REJECTED(IzinStatus.REJECTED),
+    ALL(IzinStatus.ALL),
+}
+
+/** Approval action status for update. */
+enum class ApprovalStatus(val wireValue: String) {
+    APPROVED(IzinStatus.APPROVED),
+    REJECTED(IzinStatus.REJECTED),
+}
+
+/** Firebase Storage top-level folders. */
+object StoragePaths {
+    /** Bukti surat pengajuan izin/sakit: `permits/{userId}_{epochMillis}.jpg`. */
+    const val PERMITS = "permits"
 }
 
 /**
