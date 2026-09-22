@@ -66,8 +66,7 @@ import com.gynda.fridaystm.ui.theme.Radius
 import com.gynda.fridaystm.ui.theme.Spacing
 import com.gynda.fridaystm.util.TeacherDashboardDefaults
 import com.gynda.fridaystm.viewmodel.ExportReportViewModel
-import java.time.Instant
-import java.time.ZoneId
+import com.gynda.fridaystm.util.SchoolDates
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -314,17 +313,17 @@ private fun DateFieldCard(label: String, millis: Long, onClick: () -> Unit, modi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportDatePickerDialog(initialMillis: Long, onDismiss: () -> Unit, onConfirm: (Long?) -> Unit) {
-    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+    val state = rememberDatePickerState(initialSelectedDateMillis = SchoolDates.toPickerMillis(initialMillis))
     DatePickerDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { onConfirm(state.selectedDateMillis) }) { Text("OK") } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onConfirm(state.selectedDateMillis?.let(SchoolDates::fromPickerMillis)) }) { Text("OK") } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Batal") } },
     ) { DatePicker(state = state) }
 }
 
 private fun formatDisplayDate(millis: Long): String {
     return try {
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+        SchoolDates.date(millis)
             .format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.forLanguageTag("id-ID")))
     } catch (_: Exception) { "-" }
 }

@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gynda.fridaystm.data.model.AttendanceRecord
+import com.gynda.fridaystm.data.model.AttendanceDayProjector
 import com.gynda.fridaystm.data.model.PembiasaanStamp
 import com.gynda.fridaystm.data.model.ProfileStats
 import com.gynda.fridaystm.data.model.User
@@ -90,7 +91,7 @@ class RedesignUiTest {
         compose.setContent {
             TestTheme {
                 Surface {
-                    HistoryContent(HistoryUiState.Success(listOf(AttendanceRecord(uid = "ui-fixture", date = "2026-09-18", grade = 11, pembiasaan = PembiasaanStamp(activity = "talim", checkedIn = true, time = "06:45", lat = -6.876, lng = 107.541, valid = true)))))
+                    HistoryContent(HistoryUiState.Success(AttendanceDayProjector.merge(listOf(AttendanceRecord(uid = "ui-fixture", date = "2026-09-18", grade = 11, pembiasaan = PembiasaanStamp(activity = "talim", checkedIn = true, time = "06:45", lat = -6.876, lng = 107.541, valid = true))), emptyList())))
                 }
             }
         }
@@ -102,7 +103,7 @@ class RedesignUiTest {
         compose.setContent {
             TestTheme {
                 Surface(modifier = androidx.compose.ui.Modifier.height(160.dp)) {
-                    HistoryContent(HistoryUiState.Success(listOf(AttendanceRecord(uid = "ui-fixture", date = "2026-09-18"))))
+                    HistoryContent(HistoryUiState.Success(AttendanceDayProjector.merge(listOf(AttendanceRecord(uid = "ui-fixture", date = "2026-09-18")), emptyList())))
                 }
             }
         }
