@@ -135,9 +135,12 @@ internal fun resolveHomeAction(
         }
     }
 
-    FridayPhase.CHECKOUT ->
-        if (!role.canAttendPembiasaan) HomeAction.None
-        else if (record?.checkout?.checkedOut == true) HomeAction.CheckedOut else HomeAction.CheckOut
+    FridayPhase.CHECKOUT -> when {
+        !role.canAttendPembiasaan -> HomeAction.None
+        record?.checkout?.checkedOut == true -> HomeAction.CheckedOut
+        record?.pembiasaan?.checkedIn == true -> HomeAction.CheckOut
+        else -> HomeAction.None
+    }
 
     FridayPhase.NOT_FRIDAY,
     FridayPhase.BEFORE,

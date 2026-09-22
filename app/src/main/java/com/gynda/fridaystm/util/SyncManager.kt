@@ -18,6 +18,13 @@ import java.util.concurrent.TimeUnit
 interface PresensiSyncScheduler {
     /** Enqueues (or keeps) the pending-presensi drain. No-op when already scheduled. */
     fun schedulePresensiSync()
+
+    /**
+     * Requests another drain after an auth owner returns. Durable schedulers must
+     * retain it behind any running drain without cancelling that drain.
+     * The default preserves source compatibility for existing simple schedulers.
+     */
+    fun resumePresensiSync() = schedulePresensiSync()
 }
 
 /** [PresensiSyncScheduler] that delegates to [SyncManager] (WorkManager). */
@@ -28,15 +35,21 @@ class WorkManagerPresensiSyncScheduler(context: Context) : PresensiSyncScheduler
     override fun schedulePresensiSync() {
         SyncManager.schedulePresensiSync(appContext)
     }
+
+    override fun resumePresensiSync() {
+        SyncManager.resumePresensiSync(appContext)
+    }
 }
 
 /**
  * Helper around `WorkManager.enqueueUniqueWork` for draining the offline
  * presensi queue.
  *
- * - Unique work ([PRESENSI_SYNC_WORK]) with [ExistingWorkPolicy.KEEP]: every
- *   enqueue while offline collapses into one scheduled drain instead of
- *   stacking N workers.
+ * - Ordinary captures/manual retries use [ExistingWorkPolicy.KEEP] to collapse
+ *   duplicate requests into one scheduled drain.
+ * - Auth resumption uses [ExistingWorkPolicy.APPEND_OR_REPLACE] on the same
+ *   [PRESENSI_SYNC_WORK] chain: retain a serialized follow-up without cancelling
+ *   an in-flight upload, or start a fresh chain if the old one already failed.
  * - [Constraints] require `NetworkType.CONNECTED`, so the OS only runs the
  *   worker once a path exists — the worker itself never polls for signal.
  * - Exponential backoff (30 s base) spaces retries after failed attempts;
@@ -50,6 +63,12 @@ object SyncManager {
     fun schedulePresensiSync(context: Context) {
         WorkManager.getInstance(context.applicationContext)
             .enqueueUniqueWork(PRESENSI_SYNC_WORK, ExistingWorkPolicy.KEEP, buildSyncRequest())
+    }
+
+    /** Retains an auth-resumption drain even if another account's upload is still running. */
+    fun resumePresensiSync(context: Context) {
+        WorkManager.getInstance(context.applicationContext)
+            .enqueueUniqueWork(PRESENSI_SYNC_WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, buildSyncRequest())
     }
 
     /** Cancels a scheduled drain (used after logout so no work outlives the session). */

@@ -2,7 +2,7 @@ import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebas
 import { doc, setDoc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import fs from "fs";
 
-const PROJECT_ID = "friday-stm-ef55e-test";
+const PROJECT_ID = "demo-friday-stm-test";
 const RULES_PATH = "./firestore.rules";
 
 describe("firestore.rules: larkam_runs append-only & isolated per user", () => {

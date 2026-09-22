@@ -1,0 +1,19 @@
+{
+  "name": "friday-stm-rules-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test:rules": "firebase emulators:exec --only firestore --project demo-friday-stm-test --config firebase.emulators.json \"npm run test:rules:unit\"",
+    "test:rules:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.30.2",
+    "jest": "30.5.2"
+  }
+}

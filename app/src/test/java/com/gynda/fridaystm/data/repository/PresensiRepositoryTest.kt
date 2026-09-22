@@ -8,6 +8,7 @@ import com.gynda.fridaystm.data.model.PresensiRecord
 import com.gynda.fridaystm.util.NetworkMonitor
 import com.gynda.fridaystm.util.PresensiSyncScheduler
 import com.gynda.fridaystm.util.TimeProvider
+import com.gynda.fridaystm.viewmodel.FakeAuthRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +87,7 @@ class PresensiRepositoryTest {
     ) : StorageRepository {
         var uploadBytesCalls = 0
         var lastFileName: String? = null
+        var duringUpload: suspend () -> Unit = {}
 
         override suspend fun uploadPresensiSelfie(
             userId: String,
@@ -100,6 +102,7 @@ class PresensiRepositoryTest {
         ): Result<String> {
             uploadBytesCalls++
             lastFileName = storageFileName
+            duringUpload()
             failWith?.let { return Result.failure(it) }
             return Result.success("https://storage.example.com/$storageFileName")
         }
@@ -150,7 +153,9 @@ class PresensiRepositoryTest {
         val presensi: FakePresensiRepository = FakePresensiRepository(),
         val scheduler: FakeSyncScheduler = FakeSyncScheduler(),
     ) {
+        val auth = FakeAuthRepository(initialUid = "user123")
         val repo = OfflineFirstPresensiRepository(
+            authRepository = auth,
             networkMonitor = network,
             queue = queue,
             photoCache = photos,
@@ -159,10 +164,10 @@ class PresensiRepositoryTest {
             syncScheduler = scheduler,
             timeProvider = FakeTime(),
         )
-        val syncer = PendingPresensiSyncer(queue, photos, storage, presensi)
+        val syncer = PendingPresensiSyncer(auth, queue, photos, storage, presensi)
 
-        suspend fun submit(): Result<PresensiSubmitResult> = repo.submitPresensi(
-            userId = "user123",
+        suspend fun submit(userId: String = "user123"): Result<PresensiSubmitResult> = repo.submitPresensi(
+            userId = userId,
             timestamp = fixedTime,
             imageBytes = fakeBytes,
             lat = -6.8868,
@@ -170,6 +175,21 @@ class PresensiRepositoryTest {
             studentName = "Budi",
             studentClass = "XI RPL 1",
         )
+    }
+
+    @Test
+    fun submitPresensi_signedOut_rejectsWithoutCachingOrUploading() = runTest {
+        val f = Fixture(network = FakeNetworkMonitor(online = false))
+        f.auth.signOut()
+
+        val result = f.submit()
+
+        assertTrue("Signed-out captures must fail", result.isFailure)
+        assertEquals(0, f.queue.size)
+        assertEquals(0, f.photos.saveCalls)
+        assertEquals(0, f.storage.uploadBytesCalls)
+        assertEquals(0, f.presensi.saveCalls)
+        assertEquals(0, f.scheduler.scheduleCalls)
     }
 
     @Test
@@ -242,6 +262,59 @@ class PresensiRepositoryTest {
         assertTrue(result.isFailure)
         assertEquals(0, f.queue.size)
         assertEquals(0, f.scheduler.scheduleCalls)
+    }
+
+    @Test
+    fun syncPending_mixedAccounts_retainsForeignCaptureUntilOwnerReturns() = runTest {
+        val f = Fixture(network = FakeNetworkMonitor(online = false))
+        f.submit().getOrThrow()
+        val originalRow = f.queue.pendingList().single()
+        f.auth.emitAuthState("other-test-uid")
+        f.submit("other-test-uid").getOrThrow()
+
+        val summary = f.syncer.syncPending()
+
+        assertEquals(PresensiSyncSummary(synced = 1, failed = 0), summary)
+        assertEquals(listOf(originalRow), f.queue.pendingList())
+        assertEquals(setOf(originalRow.imagePath), f.photos.files.keys)
+        assertEquals(1, f.storage.uploadBytesCalls)
+        assertEquals(1, f.presensi.saveCalls)
+
+        f.auth.emitAuthState("user123")
+        assertEquals(PresensiSyncSummary(synced = 1, failed = 0), f.syncer.syncPending())
+        assertEquals(0, f.queue.size)
+        assertTrue(f.photos.files.isEmpty())
+    }
+
+    @Test
+    fun syncPending_signedOutDoesNotReadOrUploadOldQueue() = runTest {
+        val f = Fixture(network = FakeNetworkMonitor(online = false))
+        f.submit().getOrThrow()
+        val original = f.queue.pendingList()
+        f.auth.signOut()
+        assertEquals(PresensiSyncSummary(0, 0), f.syncer.syncPending())
+        assertEquals(original, f.queue.pendingList())
+        assertEquals(0, f.storage.uploadBytesCalls)
+    }
+
+    @Test
+    fun accountSwitchDuringUploadCannotWriteFirestoreOrRemoveQueuedEvidence() = runTest {
+        val f = Fixture(network = FakeNetworkMonitor(online = false))
+        f.submit().getOrThrow()
+        val original = f.queue.pendingList()
+        f.storage.duringUpload = { f.auth.emitAuthState("other-user") }
+        f.syncer.syncPending()
+        assertEquals(0, f.presensi.saveCalls)
+        assertEquals(original, f.queue.pendingList())
+        assertEquals(1, f.photos.files.size)
+    }
+
+    @Test
+    fun onlineAccountSwitchDuringUploadCannotWriteFirestore() = runTest {
+        val f = Fixture()
+        f.storage.duringUpload = { f.auth.emitAuthState("other-user") }
+        assertTrue(f.submit().isFailure)
+        assertEquals(0, f.presensi.saveCalls)
     }
 
     @Test

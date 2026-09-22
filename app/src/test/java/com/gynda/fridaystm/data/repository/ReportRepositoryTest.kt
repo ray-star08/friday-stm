@@ -95,6 +95,34 @@ class ReportRepositoryTest {
     }
 
     @Test
+    fun duplicateDayUsesEarliestValidCaptureRegardlessOfInputOrder() {
+        val start = LocalDate.parse("2026-09-01").atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val records = listOf(
+            presensi("u1", "2026-09-01T06:45:00", "X"),
+            presensi("u1", "2026-09-01T07:15:00", "X"),
+            presensi("u1", "2026-09-01Tinvalid", "X"),
+        )
+        for (input in listOf(records, records.reversed())) {
+            val result = ReportAggregator.aggregate(listOf(user("u1", "X")), input, emptyList(), emptyList(), start, start).single()
+            assertEquals(1, result.totalHadir)
+            assertEquals(0, result.totalTerlambat)
+        }
+    }
+
+    @Test
+    fun onlyApprovedPermitsCount() {
+        val start = LocalDate.parse("2026-09-01").atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val permits = listOf(
+            izin("u1", "IZIN", "X"),
+            izin("u1", "IZIN", "X").copy(status = "PENDING"),
+            izin("u1", "SAKIT", "X").copy(status = "REJECTED"),
+        )
+        val result = ReportAggregator.aggregate(listOf(user("u1", "X")), emptyList(), permits, emptyList(), start, start).single()
+        assertEquals(1, result.totalIzin)
+        assertEquals(0, result.totalSakit)
+    }
+
+    @Test
     fun aggregate_larkamDistanceKmConversion_isAccurate() {
         val user = user("u1", "X")
         val larkam = listOf(

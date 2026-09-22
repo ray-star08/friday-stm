@@ -12,10 +12,14 @@ import com.gynda.fridaystm.util.PresensiSyncScheduler
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
 
 /**
  * Drives the Dashboard offline-queue banner: live count of unsynced presensi
@@ -31,6 +35,22 @@ class OfflineQueueViewModel(
     queue: PendingPresensiStore,
     private val syncScheduler: PresensiSyncScheduler,
 ) : ViewModel() {
+
+    // A drain deferred while signed out is resumed once its owner returns.
+    // Append a follow-up: KEEP could discard it behind a foreign owner's upload.
+    // Take only the first non-empty emission per session; status/count updates
+    // must not repeatedly schedule work or turn a failed row into a busy loop.
+    init {
+        viewModelScope.launch {
+            authRepository.observeAuthState().distinctUntilChanged().collectLatest { uid ->
+                if (uid != null) {
+                    queue.observePendingCount(uid).filter { it > 0 }.take(1).collect {
+                        if (authRepository.currentUid == uid) syncScheduler.resumePresensiSync()
+                    }
+                }
+            }
+        }
+    }
 
     val pendingCount: StateFlow<Int> = authRepository.observeAuthState()
         .distinctUntilChanged()

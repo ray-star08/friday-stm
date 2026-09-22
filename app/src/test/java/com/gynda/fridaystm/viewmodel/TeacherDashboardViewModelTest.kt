@@ -51,7 +51,7 @@ class TeacherDashboardViewModelTest {
     private fun makeIzin(userId: String, kelas: String) = IzinRecord(
         userId = userId, nama = "Nama $userId", kelas = kelas,
         tipe = "SAKIT", alasan = "Sakit", startDate = fixedDate, endDate = fixedDate,
-        proofUrl = "", status = "PENDING",
+        proofUrl = "", status = "APPROVED",
     )
     private fun makeLarkam(userId: String, km: Float) = LarkamRecord(
         userId = userId, distanceKm = km, timestamp = "${fixedDate}T07:00:00",
@@ -89,6 +89,7 @@ class TeacherDashboardViewModelTest {
     private fun viewModel(repo: FakeTeacherRepo) = TeacherDashboardViewModel(
         repository = repo,
         timeProvider = FakeTimeProvider(fixedDateTime),
+        authRepository = FakeAuthRepository(),
     )
 
     @Test
@@ -133,6 +134,45 @@ class TeacherDashboardViewModelTest {
         assertTrue(firstHadir.presensi?.imageUrl?.isNotBlank() == true)
         assertTrue(firstHadir.presensi?.timestamp?.contains("06:") == true)
 
+        job.cancel()
+    }
+
+    @Test
+    fun duplicatePresensiUsesEarliestValidTime() = runTest(dispatcher) {
+        val kelas = "XI RPL A"
+        val vm = viewModel(FakeTeacherRepo(
+            usersByClass = mapOf(kelas to listOf(makeUser("u1", "Siswa 1", kelas))),
+            presensiByClassDate = mapOf((kelas to fixedDate) to listOf(
+                makePresensi("u1", kelas, "06:45:00"),
+                makePresensi("u1", kelas, "07:15:00"),
+                makePresensi("u1", kelas, "invalid"),
+            )),
+        ))
+        val job = backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertEquals(1, vm.uiState.value.stats.totalHadir)
+        assertEquals("${fixedDate}T06:45:00", vm.uiState.value.students.single().presensi?.timestamp)
+        job.cancel()
+    }
+
+    @Test
+    fun pendingAndRejectedPermitsAreNotExcused() = runTest(dispatcher) {
+        val kelas = "XI RPL A"
+        val users = (1..3).map { makeUser("u$it", "Siswa $it", kelas) }
+        val permits = listOf(
+            makeIzin("u1", kelas),
+            makeIzin("u2", kelas).copy(status = "PENDING"),
+            makeIzin("u3", kelas).copy(status = "REJECTED"),
+        )
+        val vm = viewModel(FakeTeacherRepo(
+            usersByClass = mapOf(kelas to users),
+            izinByClassDate = mapOf((kelas to fixedDate) to permits),
+        ))
+        val job = backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertEquals(1, vm.uiState.value.stats.totalIzin)
+        assertEquals(2, vm.uiState.value.stats.totalBelum)
+        assertEquals(listOf("IZIN", "BELUM", "BELUM"), vm.uiState.value.students.map { it.status.name })
         job.cancel()
     }
 

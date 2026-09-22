@@ -2,6 +2,7 @@ package com.gynda.fridaystm.viewmodel
 
 import com.gynda.fridaystm.R
 import com.gynda.fridaystm.data.model.AttendanceRecord
+import com.gynda.fridaystm.data.model.CheckoutStamp
 import com.gynda.fridaystm.data.model.Geofence
 import com.gynda.fridaystm.data.model.PembiasaanStamp
 import com.gynda.fridaystm.data.model.RotationSchedule
@@ -57,6 +58,13 @@ class HomeViewModelTest {
         grade = 11,
         kelas = "XI RPL 1",
         role = "student",
+    )
+
+    private val checkedInRecord = AttendanceRecord(
+        uid = "u1",
+        date = "2026-08-14",
+        grade = 11,
+        pembiasaan = PembiasaanStamp(activity = ActivityType.LARKAM, checkedIn = true),
     )
 
     @Before
@@ -179,7 +187,7 @@ class HomeViewModelTest {
     @Test
     fun `onCheckOut persists the stamp, reports Success, and flips action to CheckedOut`() =
         runTest(dispatcher) {
-            val attendance = FakeAttendanceRepository()
+            val attendance = FakeAttendanceRepository(initialRecord = checkedInRecord)
             val vm = viewModel(
                 time = FakeTimeProvider(fridayCheckout, week), // 08:10 → CHECKOUT
                 auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
@@ -204,13 +212,91 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `onCheckOut does not submit missing or incomplete pembiasaan`() = runTest(dispatcher) {
+        for (record in listOf(null, AttendanceRecord(), checkedInRecord.copy(pembiasaan = PembiasaanStamp()))) {
+            val attendance = FakeAttendanceRepository(initialRecord = record)
+            val vm = viewModel(
+                time = FakeTimeProvider(fridayCheckout, week),
+                auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
+                attendance = attendance,
+            )
+            val job = backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.onCheckOut() // Direct call must be safe even if a caller bypasses the UI.
+            runCurrent()
+
+            assertTrue("record=$record", attendance.checkoutCalls.isEmpty())
+            assertEquals(SubmitStatus.Idle, vm.submitStatus.value)
+            job.cancel()
+        }
+    }
+
+    @Test
+    fun `onCheckOut ignores loading state`() = runTest(dispatcher) {
+        val attendance = FakeAttendanceRepository(initialRecord = checkedInRecord)
+        val vm = viewModel(
+            time = FakeTimeProvider(fridayCheckout, week),
+            auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
+            attendance = attendance,
+        )
+        vm.onCheckOut()
+        runCurrent()
+        assertTrue(attendance.checkoutCalls.isEmpty())
+        assertEquals(SubmitStatus.Idle, vm.submitStatus.value)
+    }
+
+    @Test
+    fun `onCheckOut refuses non-checkout phases and non-attending roles`() = runTest(dispatcher) {
+        val scenarios = listOf(
+            fridayBefore to student11,
+            fridayPembiasaan to student11,
+            fridayCheckout.withHour(9) to student11,
+            fridayCheckout to student11.copy(role = "instructor"),
+        )
+        for ((time, user) in scenarios) {
+            val attendance = FakeAttendanceRepository(initialRecord = checkedInRecord)
+            val vm = viewModel(
+                time = FakeTimeProvider(time, week),
+                auth = FakeAuthRepository(mapOf("u1" to user), initialUid = "u1"),
+                attendance = attendance,
+            )
+            val job = backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+            vm.onCheckOut()
+            runCurrent()
+            assertTrue("time=$time role=${user.role}", attendance.checkoutCalls.isEmpty())
+            job.cancel()
+        }
+    }
+
+    @Test
+    fun `onCheckOut does not resubmit a legacy checked-out record`() = runTest(dispatcher) {
+        val attendance = FakeAttendanceRepository(
+            initialRecord = AttendanceRecord(checkout = CheckoutStamp(checkedOut = true)),
+        )
+        val vm = viewModel(
+            time = FakeTimeProvider(fridayCheckout, week),
+            auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
+            attendance = attendance,
+        )
+        val job = backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertEquals(HomeAction.CheckedOut, (vm.uiState.value as HomeUiState.Ready).action)
+        vm.onCheckOut()
+        runCurrent()
+        assertTrue(attendance.checkoutCalls.isEmpty())
+        job.cancel()
+    }
+
+    @Test
     fun `onSubmitStatusConsumed resets a shown status back to Idle`() = runTest(dispatcher) {
         // The Home UI fires a one-shot success haptic then consumes the status; this
         // locks the reset contract that keeps it from re-firing on recomposition.
         val vm = viewModel(
             time = FakeTimeProvider(fridayCheckout, week),
             auth = FakeAuthRepository(mapOf("u1" to student11), initialUid = "u1"),
-            attendance = FakeAttendanceRepository(),
+            attendance = FakeAttendanceRepository(initialRecord = checkedInRecord),
         )
         val job = launch { vm.uiState.collect {} }
         runCurrent()

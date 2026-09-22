@@ -60,10 +60,28 @@ class HomeActionRoleTest {
     }
 
     @Test
-    fun `attending role gets CheckOut, and CheckedOut once stamped`() {
+    fun `checkout is unavailable without a completed pembiasaan check-in`() {
+        val incompleteRecords = listOf(
+            null,
+            AttendanceRecord(),
+            AttendanceRecord(pembiasaan = PembiasaanStamp(checkedIn = false)),
+        )
+        for (role in listOf(Role.STUDENT, Role.CLASS_REP, Role.ADMIN)) {
+            for (record in incompleteRecords) {
+                assertEquals(
+                    "role=$role record=$record",
+                    HomeAction.None,
+                    resolveHomeAction(FridayPhase.CHECKOUT, larkam, record, role),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `attending role gets CheckOut after check-in and legacy CheckedOut once stamped`() {
         assertEquals(
             HomeAction.CheckOut,
-            resolveHomeAction(FridayPhase.CHECKOUT, larkam, record = null, role = Role.STUDENT),
+            resolveHomeAction(FridayPhase.CHECKOUT, larkam, checkedInLarkam, Role.STUDENT),
         )
         val doneOut = AttendanceRecord(checkout = CheckoutStamp(checkedOut = true, time = "08:05"))
         assertEquals(

@@ -30,6 +30,7 @@ data class PresensiSyncSummary(
  *   exponential-backoff retry.
  */
 class PendingPresensiSyncer(
+    private val authRepository: AuthRepository,
     private val queue: PendingPresensiStore,
     private val photoCache: PendingPhotoCache,
     private val storageRepository: StorageRepository,
@@ -37,9 +38,12 @@ class PendingPresensiSyncer(
 ) {
 
     suspend fun syncPending(): PresensiSyncSummary {
+        val ownerUid = authRepository.currentUid ?: return PresensiSyncSummary(0, 0)
         var synced = 0
         var failed = 0
         for (entity in queue.pendingList()) {
+            if (authRepository.currentUid != ownerUid) break
+            if (entity.userId != ownerUid) continue
             try {
                 val bytes = photoCache.readPhoto(entity.imagePath)
                     ?: throw IllegalStateException("Cached photo missing: ${entity.imagePath}")
@@ -53,6 +57,7 @@ class PendingPresensiSyncer(
                     bytes = bytes,
                     storageFileName = entity.storageFileName,
                 ).getOrThrow()
+                if (authRepository.currentUid != ownerUid) break
                 presensiRepository.savePresensi(
                     userId = entity.userId,
                     timestamp = timestamp,
@@ -66,6 +71,7 @@ class PendingPresensiSyncer(
                 photoCache.deletePhoto(entity.imagePath)
                 synced++
             } catch (_: Exception) {
+                if (authRepository.currentUid != ownerUid) break
                 try {
                     queue.updateStatus(entity.id, PendingSyncStatus.FAILED)
                 } catch (_: Exception) {

@@ -62,9 +62,10 @@ fun LarkamTrackingScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val saveSuccessMessage = stringResource(R.string.larkam_save_success)
     LaunchedEffect(state.status) {
         if (state.status == RunStatus.Saved) {
-            Toast.makeText(context, context.getString(R.string.larkam_save_success), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
         }
         if (state.status == RunStatus.Finished && onFinishSelfie != null) {
             onFinishSelfie()

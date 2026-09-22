@@ -74,6 +74,7 @@ interface OfflinePresensiRepository {
 }
 
 class OfflineFirstPresensiRepository(
+    private val authRepository: AuthRepository,
     private val networkMonitor: NetworkMonitor,
     private val queue: PendingPresensiStore,
     private val photoCache: PendingPhotoCache,
@@ -99,6 +100,7 @@ class OfflineFirstPresensiRepository(
         ) {
             is PresensiUploadResult.QueuedOffline -> PresensiSubmitResult.QueuedOffline
             is PresensiUploadResult.Uploaded -> {
+                check(authRepository.currentUid == userId) { "Account changed during upload" }
                 presensiRepository.savePresensi(
                     userId = userId,
                     timestamp = timestamp,
@@ -123,6 +125,7 @@ class OfflineFirstPresensiRepository(
         studentClass: String,
     ): Result<PresensiUploadResult> = runCatching {
         require(userId.isNotBlank()) { "userId must not be blank" }
+        check(authRepository.currentUid == userId) { "Presensi requires the current signed-in owner" }
         require(imageBytes.isNotEmpty()) { "photo bytes must not be empty" }
 
         if (!networkMonitor.isOnline()) {
@@ -136,6 +139,7 @@ class OfflineFirstPresensiRepository(
                 bytes = imageBytes,
                 storageFileName = FirebaseStorageRepository.presensiFileName(userId, timestamp),
             ).getOrThrow()
+            check(authRepository.currentUid == userId) { "Account changed during upload" }
             PresensiUploadResult.Uploaded(url)
         } catch (e: Exception) {
             // Connectivity dropped between the check and the put, or the
@@ -160,6 +164,7 @@ class OfflineFirstPresensiRepository(
         studentName: String,
         studentClass: String,
     ): Result<PresensiUploadResult> = runCatching {
+        check(authRepository.currentUid == userId) { "Account changed before queueing" }
         val imagePath = photoCache.savePendingPhoto(userId, timestamp, imageBytes).getOrThrow()
         try {
             queue.insert(

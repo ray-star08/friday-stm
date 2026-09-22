@@ -257,9 +257,13 @@ class HomeViewModel(
         }
     }
 
-    /** Fase 3 mandatory check-out. No geofence/selfie — only the time is recorded. */
+    /** Mandatory check-out after today's pembiasaan check-in; no geofence/selfie. */
     fun onCheckOut() {
+        val ready = uiState.value as? HomeUiState.Ready ?: return
+        if (ready.phase != FridayPhase.CHECKOUT || !ready.user.roleEnum.canAttendPembiasaan) return
+        if (ready.record?.pembiasaan?.checkedIn != true || ready.record.checkout?.checkedOut == true) return
         val uid = authRepository.currentUid ?: return
+        if (uid != ready.user.uid) return
         submit {
             attendanceRepository.submitCheckout(
                 uid = uid,

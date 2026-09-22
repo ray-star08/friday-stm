@@ -80,12 +80,13 @@ object ReportAggregator {
         val startLocal = Instant.ofEpochMilli(startDate).atZone(ZoneId.systemDefault()).toLocalDate()
         val endLocal = Instant.ofEpochMilli(endDate).atZone(ZoneId.systemDefault()).toLocalDate()
 
-        // Distinct attendance dates for alfa denominator (unique presensi dates)
-        val distinctAttendanceDates = presensi.mapNotNull { extractDate(it.timestamp) }.toSet().size
+        val dailyPresensi = earliestDailyPresensi(presensi)
+        // Preserve the existing observed-days denominator; calendar policy is separate.
+        val distinctAttendanceDates = dailyPresensi.mapNotNull { extractDate(it.timestamp) }.toSet().size
 
         // Group by userId for O(1) lookup
-        val presensiByUser = presensi.groupBy { it.userId }
-        val izinByUser = izin.groupBy { it.userId }
+        val presensiByUser = dailyPresensi.groupBy { it.userId }
+        val izinByUser = izin.filter { it.status == com.gynda.fridaystm.util.IzinStatus.APPROVED }.groupBy { it.userId }
         val larkamByUser = larkam.groupBy { it.userId }
 
         return users.map { user ->
