@@ -1,78 +1,56 @@
 package com.gynda.fridaystm.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.gynda.fridaystm.data.model.ProfileStats
 import com.gynda.fridaystm.util.FirestoreCollections
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 
-/**
- * Agregat statistik siswa untuk layar Profil, dihitung client-side dari
- * query Firestore milik user yang sedang masuk:
- *
- * - [ProfileStats.presensiCount]: jumlah dokumen `presensi_records`.
- * - [ProfileStats.larkamDistanceKm]: sum `distanceKm` dari `larkam_records`.
- * - [ProfileStats.izinCount]: jumlah dokumen `izin_records`.
- *
- * Tiap sumber dibaca independen dan gagal-terbuka ke 0 — satu koleksi yang
- * belum ada / tertolak rules tidak meruntuhkan seluruh ringkasan. Interface
- * (SKILL.md §9) agar ViewModel di-test dengan fake; query berupa `suspend` +
- * `.await()` → [Result] (SKILL.md §5).
- */
+/** Recorded days use the shared read model; permit count remains applications, not approvals. */
 interface ProfileStatsRepository {
-    /** Menghitung [ProfileStats] milik [userId]. */
     suspend fun getStats(userId: String): Result<ProfileStats>
 }
 
-/** Firestore-backed [ProfileStatsRepository]. */
-class FirebaseProfileStatsRepository(
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+internal interface ProfileAuxiliarySource {
+    suspend fun distanceKm(uid: String): Double
+    suspend fun permitCount(uid: String): Int
+}
+internal class CompatibleProfileStatsRepository(
+    private val reader: AttendanceReadRepository,
+    private val auxiliary: ProfileAuxiliarySource,
 ) : ProfileStatsRepository {
-
     override suspend fun getStats(userId: String): Result<ProfileStats> = runCatching {
+        require(userId.isNotBlank()) { "UID kosong" }
+        val days = reader.getUser(userId).getOrThrow()
         ProfileStats(
-            presensiCount = countWhere("userId", userId, FirestoreCollections.PRESENSI_RECORDS),
-            larkamDistanceKm = sumDistanceKm(userId),
-            izinCount = countWhere("userId", userId, FirestoreCollections.IZIN_RECORDS),
+            presensiCount = days.filter { it.userId == userId }.distinctBy { it.id }.count { it.countsAsPresent },
+            larkamDistanceKm = auxiliary.distanceKm(userId),
+            izinCount = auxiliary.permitCount(userId),
         )
-    }
+    }.onFailure { if (it is CancellationException) throw it }
+}
 
-    /** Jumlah dokumen di [collection] dengan `field == userId`; gagal → 0. */
-    private suspend fun countWhere(field: String, userId: String, collection: String): Int =
-        try {
-            firestore.collection(collection)
-                .whereEqualTo(field, userId)
-                .get()
-                .await()
-                .size()
-        } catch (_: Exception) {
-            0
+/** All required data must load; failed queries are never replaced with zeros. */
+class FirebaseProfileStatsRepository(
+    firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    attendanceReader: AttendanceReadRepository = FirebaseAttendanceReadRepository(firestore),
+) : ProfileStatsRepository by CompatibleProfileStatsRepository(attendanceReader, FirebaseProfileAuxiliarySource(firestore)) {
+    companion object { const val LARKAM_RECORDS = "larkam_records" }
+}
+
+internal class FirebaseProfileAuxiliarySource(private val firestore: FirebaseFirestore) : ProfileAuxiliarySource {
+    override suspend fun distanceKm(uid: String): Double = firestore.collection(FirebaseProfileStatsRepository.LARKAM_RECORDS)
+        .whereEqualTo(USER_ID, uid).get(Source.SERVER).await().documents.sumOf {
+            val km = (it.get(DISTANCE_KM) as? Number)?.toDouble() ?: 0.0
+            if (km != 0.0) km else ((it.get(DISTANCE_METERS) as? Number)?.toDouble() ?: 0.0) / 1000.0
         }
+    override suspend fun permitCount(uid: String): Int = firestore.collection(FirestoreCollections.IZIN_RECORDS)
+        .whereEqualTo(USER_ID, uid).get(Source.SERVER).await().size()
 
-    /**
-     * Sum `distanceKm` dari `larkam_records` milik user; gagal → 0.0.
-     * Nilai dibaca toleran ([Number], bukan `getDouble` langsung) karena
-     * penulisnya menyimpan `Float`.
-     */
-    private suspend fun sumDistanceKm(userId: String): Double =
-        try {
-            firestore.collection(LARKAM_RECORDS)
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-                .documents
-                .sumOf { (it.get("distanceKm") as? Number)?.toDouble() ?: 0.0 }
-        } catch (_: Exception) {
-            0.0
-        }
-
-    companion object {
-        /**
-         * Larik selfie-finish Larkam yang ditulis `PresensiCameraViewModel`
-         * (berisi `distanceKm`, `durationSeconds`, …). Belum ada di
-         * [FirestoreCollections] karena penulisannya inline, bukan via
-         * repository — baca agregat di sini menoleransi ketidakhadiran rules
-         * (jatuh ke 0.0, lihat [sumDistanceKm]).
-         */
-        const val LARKAM_RECORDS = "larkam_records"
+    private companion object {
+        const val USER_ID = "userId"
+        const val DISTANCE_KM = "distanceKm"
+        const val DISTANCE_METERS = "distanceMeters"
     }
 }

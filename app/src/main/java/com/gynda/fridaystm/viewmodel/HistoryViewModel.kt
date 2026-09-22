@@ -7,19 +7,19 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gynda.fridaystm.R
-import com.gynda.fridaystm.data.model.AttendanceRecord
-import com.gynda.fridaystm.data.repository.AttendanceRepository
+import com.gynda.fridaystm.data.model.AttendanceDay
+import com.gynda.fridaystm.data.repository.AttendanceReadRepository
 import com.gynda.fridaystm.data.repository.AuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
-import com.gynda.fridaystm.data.repository.FirestoreAttendanceRepository
+import com.gynda.fridaystm.data.repository.FirebaseAttendanceReadRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -32,7 +32,7 @@ sealed interface HistoryUiState {
     data object Loading : HistoryUiState
 
     /** Loaded, has at least one record (most-recent first). */
-    data class Success(val records: List<AttendanceRecord>) : HistoryUiState
+    data class Success(val records: List<AttendanceDay>) : HistoryUiState
 
     /** Loaded, but the user has no attendance records yet. */
     data object Empty : HistoryUiState
@@ -52,20 +52,21 @@ sealed interface HistoryUiState {
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModel(
     authRepository: AuthRepository,
-    attendanceRepository: AttendanceRepository,
+    attendanceRepository: AttendanceReadRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<HistoryUiState> = authRepository.observeAuthState()
         .distinctUntilChanged()
         .flatMapLatest { uid ->
-            if (uid == null) flowOf<List<AttendanceRecord>>(emptyList())
-            else attendanceRepository.observeHistory(uid)
+            flow<HistoryUiState> {
+                emit(HistoryUiState.Loading)
+                if (uid == null) emit(HistoryUiState.Empty)
+                else emitAll(attendanceRepository.observeUser(uid).map { records ->
+                    if (records.isEmpty()) HistoryUiState.Empty
+                    else HistoryUiState.Success(records)
+                })
+            }.catch { emit(HistoryUiState.Error(R.string.history_error_generic)) }
         }
-        .map { records ->
-            if (records.isEmpty()) HistoryUiState.Empty
-            else HistoryUiState.Success(records)
-        }
-        .catch { emit(HistoryUiState.Error(R.string.history_error_generic)) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
@@ -77,7 +78,7 @@ class HistoryViewModel(
 
         fun factory(
             authRepository: AuthRepository = FirebaseAuthRepository(),
-            attendanceRepository: AttendanceRepository = FirestoreAttendanceRepository(),
+            attendanceRepository: AttendanceReadRepository = FirebaseAttendanceReadRepository(),
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer { HistoryViewModel(authRepository, attendanceRepository) }
         }

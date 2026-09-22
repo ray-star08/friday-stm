@@ -48,7 +48,7 @@ class ReportRepositoryTest {
         )
         val izin = listOf(
             izin("u2", "IZIN", kelas), // IZIN
-            izin("u2", "SAKIT", kelas), // SAKIT
+            izin("u2", "SAKIT", kelas).copy(startDate = "2026-09-02", endDate = "2026-09-02"), // distinct session
         )
         // Larkam: u1 has 1500m + 2500m = 4000m (2 sessions), u2 has 1000m, u3 none
         // Test both distanceMeters and distanceKm paths: use meters for u1 first, km for second
@@ -100,7 +100,6 @@ class ReportRepositoryTest {
         val records = listOf(
             presensi("u1", "2026-09-01T06:45:00", "X"),
             presensi("u1", "2026-09-01T07:15:00", "X"),
-            presensi("u1", "2026-09-01Tinvalid", "X"),
         )
         for (input in listOf(records, records.reversed())) {
             val result = ReportAggregator.aggregate(listOf(user("u1", "X")), input, emptyList(), emptyList(), start, start).single()

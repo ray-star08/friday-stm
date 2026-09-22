@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gynda.fridaystm.data.model.ExportFormat
-import com.gynda.fridaystm.data.model.RekapReportFilter
+import com.gynda.fridaystm.util.SchoolDates
 import com.gynda.fridaystm.data.repository.FirebaseReportRepository
 import com.gynda.fridaystm.data.repository.ReportRepository
 import com.gynda.fridaystm.util.TeacherDashboardDefaults
@@ -24,8 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
+import java.time.Clock
 
 data class ExportReportUiState(
     val selectedClass: String = TeacherDashboardDefaults.DEFAULT_CLASS,
@@ -38,21 +37,18 @@ data class ExportReportUiState(
     val errorMessage: String? = null,
 ) {
     companion object {
-        fun defaultStartDate(): Long {
-            // 7 days ago at 00:00
-            val now = java.time.LocalDate.now()
-            return now.minusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        }
-        fun defaultEndDate(): Long {
-            val now = java.time.LocalDate.now()
-            return now.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        }
+        fun defaultStartDate(clock: Clock = Clock.systemUTC()): Long =
+            SchoolDates.startOfDay(SchoolDates.today(clock).minusDays(7))
+
+        fun defaultEndDate(clock: Clock = Clock.systemUTC()): Long =
+            SchoolDates.startOfDay(SchoolDates.today(clock))
     }
 }
 
 class ExportReportViewModel(
     private val reportRepository: ReportRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    clock: Clock = Clock.systemUTC(),
     private val uriProvider: (Context, File) -> Uri = { ctx, file ->
         try {
             FileProvider.getUriForFile(ctx.applicationContext, "${ctx.packageName}.fileprovider", file)
@@ -62,7 +58,11 @@ class ExportReportViewModel(
     },
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ExportReportUiState())
+    private val initialDay = SchoolDates.today(clock)
+    private val _uiState = MutableStateFlow(ExportReportUiState(
+        startDate = SchoolDates.startOfDay(initialDay.minusDays(7)),
+        endDate = SchoolDates.startOfDay(initialDay),
+    ))
     val uiState: StateFlow<ExportReportUiState> = _uiState.asStateFlow()
 
     fun onClassSelected(kelas: String) {

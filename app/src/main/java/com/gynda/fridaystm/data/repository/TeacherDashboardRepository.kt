@@ -4,12 +4,16 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.gynda.fridaystm.data.model.IzinRecord
 import com.gynda.fridaystm.data.model.LarkamRecord
-import com.gynda.fridaystm.data.model.PresensiRecord
+import com.gynda.fridaystm.data.model.AttendanceDay
 import com.gynda.fridaystm.data.model.User
 import com.gynda.fridaystm.util.FirestoreCollections
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -30,9 +34,9 @@ interface TeacherDashboardRepository {
     fun observeUsersByClass(kelas: String): Flow<List<User>>
 
     /** Presensi for the class on a given date (timestamp prefix `yyyy-MM-dd`). */
-    fun observePresensi(kelas: String, date: String): Flow<List<PresensiRecord>>
+    fun observePresensi(kelas: String, date: String): Flow<List<AttendanceDay>>
 
-    /** Izin that covers the date and class (client-filtered by start/end). */
+    /** Izin for current class members, including evidence captured before a transfer. */
     fun observeIzin(kelas: String, date: String): Flow<List<IzinRecord>>
 
     /** Larkam distance records for the class/date (timestamp prefix). */
@@ -42,47 +46,37 @@ interface TeacherDashboardRepository {
     suspend fun fetchAvailableClasses(): Result<List<String>>
 }
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+internal class FirestoreTeacherPermitSource(private val gateway: AttendanceQueryGateway) {
+    fun observe(kelas: String, date: String): Flow<List<IzinRecord>> =
+        gateway.observe(rosterQuery(kelas), User::class.java).flatMapLatest { users ->
+            val ids = users.currentOwnerIds(kelas)
+            if (ids.isEmpty()) flowOf(emptyList()) else gateway.observeForOwners(
+                AttendanceOwnerCollection.PERMITS, ids, IzinRecord::class.java,
+            ).map { records -> records.filter { it.userId in ids && it.startDate <= date && date <= it.endDate } }
+        }.buffer(0).restoreQueryCancellation()
+}
+
 class FirebaseTeacherDashboardRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val attendanceReader: AttendanceReadRepository = FirebaseAttendanceReadRepository(firestore),
 ) : TeacherDashboardRepository {
 
     override fun observeUsersByClass(kelas: String): Flow<List<User>> = callbackFlow {
         val query: Query = firestore.collection(FirestoreCollections.USERS)
             .whereEqualTo("kelas", kelas)
         val reg = query.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            if (err != null) { close(err); return@addSnapshotListener }
             trySend(snap?.toObjects(User::class.java).orEmpty())
         }
         awaitClose { reg.remove() }
     }
 
-    override fun observePresensi(kelas: String, date: String): Flow<List<PresensiRecord>> = callbackFlow {
-        // studentClass filter is server-side; date prefix filtered client-side
-        val query: Query = firestore.collection(FirestoreCollections.PRESENSI_RECORDS)
-            .whereEqualTo("studentClass", kelas)
-        val reg = query.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-            val all = snap?.toObjects(PresensiRecord::class.java).orEmpty()
-            val filtered = all.filter { it.timestamp.startsWith(date) }
-            trySend(filtered)
-        }
-        awaitClose { reg.remove() }
-    }
+    override fun observePresensi(kelas: String, date: String): Flow<List<AttendanceDay>> =
+        attendanceReader.observeClass(kelas, date)
 
-    override fun observeIzin(kelas: String, date: String): Flow<List<IzinRecord>> = callbackFlow {
-        val query: Query = firestore.collection(FirestoreCollections.IZIN_RECORDS)
-            .whereEqualTo("kelas", kelas)
-        val reg = query.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-            val all = snap?.toObjects(IzinRecord::class.java).orEmpty()
-            // IzinRecord covers [startDate, endDate] inclusive (yyyy-MM-dd)
-            val filtered = all.filter { rec ->
-                rec.startDate <= date && date <= rec.endDate
-            }
-            trySend(filtered)
-        }
-        awaitClose { reg.remove() }
-    }
+    override fun observeIzin(kelas: String, date: String): Flow<List<IzinRecord>> =
+        FirestoreTeacherPermitSource(FirebaseAttendanceQueryGateway(firestore)).observe(kelas, date)
 
     override fun observeLarkam(kelas: String, date: String): Flow<List<LarkamRecord>> = callbackFlow {
         // `larkam_records` docs are written without `studentClass` (see
@@ -91,7 +85,7 @@ class FirebaseTeacherDashboardRepository(
         // and let the ViewModel filter to `kelas` via the user roster.
         val query: Query = firestore.collection("larkam_records")
         val reg = query.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            if (err != null) { close(err); return@addSnapshotListener }
             val docs = snap?.documents.orEmpty()
             val list = docs.mapNotNull { d ->
                 try {

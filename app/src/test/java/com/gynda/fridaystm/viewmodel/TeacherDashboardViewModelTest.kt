@@ -3,6 +3,8 @@ package com.gynda.fridaystm.viewmodel
 import com.gynda.fridaystm.data.model.IzinRecord
 import com.gynda.fridaystm.data.model.LarkamRecord
 import com.gynda.fridaystm.data.model.PresensiRecord
+import com.gynda.fridaystm.data.model.AttendanceDay
+import com.gynda.fridaystm.data.model.AttendanceDayProjector
 import com.gynda.fridaystm.data.model.User
 import com.gynda.fridaystm.data.repository.TeacherDashboardRepository
 import com.gynda.fridaystm.viewmodel.FakeTimeProvider
@@ -71,9 +73,9 @@ class TeacherDashboardViewModelTest {
             requestedClasses.add(kelas)
             return flowOf(usersByClass[kelas].orEmpty())
         }
-        override fun observePresensi(kelas: String, date: String): Flow<List<PresensiRecord>> {
+        override fun observePresensi(kelas: String, date: String): Flow<List<AttendanceDay>> {
             requestedDates.add(date)
-            return flowOf(presensiByClassDate[kelas to date].orEmpty())
+            return kotlinx.coroutines.flow.flow { emit(AttendanceDayProjector.merge(emptyList(), presensiByClassDate[kelas to date].orEmpty())) }
         }
         override fun observeIzin(kelas: String, date: String): Flow<List<IzinRecord>> =
             flowOf(izinByClassDate[kelas to date].orEmpty())
@@ -89,8 +91,87 @@ class TeacherDashboardViewModelTest {
     private fun viewModel(repo: FakeTeacherRepo) = TeacherDashboardViewModel(
         repository = repo,
         timeProvider = FakeTimeProvider(fixedDateTime),
-        authRepository = FakeAuthRepository(),
+        authRepository = FakeAuthRepository(initialUid = "teacher"),
     )
+
+    @Test
+    fun rosterChangeClearsSummaryAndWaitsForFreshEvidence() = runTest(dispatcher) {
+        val kelas = "XI RPL A"
+        val roster = MutableStateFlow(listOf(makeUser("old", "Old", kelas)))
+        val evidence = kotlinx.coroutines.flow.MutableSharedFlow<List<AttendanceDay>>()
+        val base = FakeTeacherRepo()
+        val repo = object : TeacherDashboardRepository by base {
+            override fun observeUsersByClass(kelas: String) = roster
+            override fun observePresensi(kelas: String, date: String) = evidence
+        }
+        val vm = TeacherDashboardViewModel(repo, FakeTimeProvider(fixedDateTime), FakeAuthRepository(initialUid = "teacher"))
+        backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertTrue(vm.uiState.value.isLoading)
+        evidence.emit(AttendanceDayProjector.merge(emptyList(), listOf(makePresensi("old", kelas))))
+        runCurrent()
+        assertEquals(1, vm.uiState.value.stats.totalHadir)
+        roster.value = listOf(makeUser("new", "New", kelas))
+        runCurrent()
+        assertTrue("New roster must not use previous evidence as completed data", vm.uiState.value.isLoading)
+        assertTrue(vm.uiState.value.students.isEmpty())
+        evidence.emit(AttendanceDayProjector.merge(emptyList(), listOf(makePresensi("new", kelas))))
+        runCurrent()
+        assertTrue(!vm.uiState.value.isLoading)
+        assertEquals("new", vm.uiState.value.students.single().user.uid)
+        assertEquals(1, vm.uiState.value.stats.totalHadir)
+    }
+
+    @Test
+    fun errorCanRecoverOnRefreshOrAccountChange() = runTest(dispatcher) {
+        val base = FakeTeacherRepo()
+        var fail = true
+        val repo = object : TeacherDashboardRepository by base {
+            override fun observePresensi(kelas: String, date: String): Flow<List<AttendanceDay>> =
+                kotlinx.coroutines.flow.flow {
+                    if (fail) error("offline")
+                    emit(emptyList())
+                }
+        }
+        val auth = FakeAuthRepository(initialUid = "teacher")
+        val vm = TeacherDashboardViewModel(repo, FakeTimeProvider(fixedDateTime), auth)
+        backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertEquals("offline", vm.uiState.value.error)
+        fail = false
+        vm.refresh()
+        runCurrent()
+        assertEquals(null, vm.uiState.value.error)
+        auth.signOut()
+        runCurrent()
+        assertTrue(vm.uiState.value.students.isEmpty())
+        assertTrue(vm.uiState.value.error != null)
+    }
+
+    @Test
+    fun malformedLegacyIsAnErrorNotSuccessfulAbsence() = runTest(dispatcher) {
+        val kelas = "XI RPL A"
+        val vm = viewModel(FakeTeacherRepo(
+            usersByClass = mapOf(kelas to listOf(makeUser("u1", "Siswa", kelas))),
+            presensiByClassDate = mapOf((kelas to fixedDate) to listOf(makePresensi("u1", kelas, "invalid"))),
+        ))
+        backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        assertTrue(vm.uiState.value.error != null)
+        assertTrue(vm.uiState.value.students.isEmpty())
+    }
+
+    @Test
+    fun refreshActuallyResubscribesToSources() = runTest(dispatcher) {
+        val repo = FakeTeacherRepo()
+        val vm = viewModel(repo)
+        backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        val before = repo.requestedClasses.size
+        vm.refresh()
+        runCurrent()
+        assertTrue("Refresh must re-open listeners, not just delay", repo.requestedClasses.size > before)
+    }
 
     @Test
     fun loadClassData_success_calculatesAggregateStatsCorrectly() = runTest(dispatcher) {
@@ -123,14 +204,14 @@ class TeacherDashboardViewModelTest {
         assertEquals(22.7, state.stats.totalLarkamKm, 0.01)
         assertEquals(20, state.students.size)
         // verify student status mapping
-        val hadirCount = state.students.count { it.status.name == "HADIR" }
+        val hadirCount = state.students.count { it.status.name == "LEGACY" }
         val izinCount = state.students.count { it.status.name == "IZIN" }
         val belumCount = state.students.count { it.status.name == "BELUM" }
         assertEquals(12, hadirCount)
         assertEquals(3, izinCount)
         assertEquals(5, belumCount)
         // check that hadir item has foto & jam
-        val firstHadir = state.students.first { it.status.name == "HADIR" }
+        val firstHadir = state.students.first { it.status.name == "LEGACY" }
         assertTrue(firstHadir.presensi?.imageUrl?.isNotBlank() == true)
         assertTrue(firstHadir.presensi?.timestamp?.contains("06:") == true)
 
@@ -145,7 +226,6 @@ class TeacherDashboardViewModelTest {
             presensiByClassDate = mapOf((kelas to fixedDate) to listOf(
                 makePresensi("u1", kelas, "06:45:00"),
                 makePresensi("u1", kelas, "07:15:00"),
-                makePresensi("u1", kelas, "invalid"),
             )),
         ))
         val job = backgroundScope.launch { vm.uiState.collect {} }
@@ -223,7 +303,7 @@ class TeacherDashboardViewModelTest {
         val date2 = "2026-09-13"
         val users = (1..3).map { makeUser("u$it", "S $it", kelas) }
         val presensiDate1 = listOf(makePresensi("u1", kelas))
-        val presensiDate2 = listOf(makePresensi("u1", kelas, "06:50:00"), makePresensi("u2", kelas, "06:55:00"))
+        val presensiDate2 = listOf(makePresensi("u1", kelas, "06:50:00"), makePresensi("u2", kelas, "06:55:00")).map { it.copy(timestamp = it.timestamp.replace(fixedDate, date2)) }
         val repo = FakeTeacherRepo(
             usersByClass = mapOf(kelas to users),
             presensiByClassDate = mapOf(

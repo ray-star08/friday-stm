@@ -13,11 +13,15 @@ data class TeacherStats(
     val totalIzin: Int = 0,
     val totalBelum: Int = 0,
     val totalLarkamKm: Double = 0.0,
+    val totalNeedsReview: Int = 0,
 )
 
 /** Presence badge shown per student in the list. */
 enum class StudentPresenceStatus {
     HADIR,
+    PARTIAL,
+    LEGACY,
+    NEEDS_REVIEW,
     IZIN,
     BELUM,
 }
@@ -39,6 +43,7 @@ data class StudentAttendanceItem(
     val presensi: PresensiRecord? = null,
     val izin: IzinRecord? = null,
     val larkamDistanceKm: Double? = null,
+    val day: AttendanceDay? = null,
 )
 
 /**
@@ -81,6 +86,37 @@ fun calculateTeacherStats(
         totalLarkamKm = totalLarkamKm,
     )
 }
+
+/** Shared lifecycle aggregation entry points. */
+fun buildDayAttendanceList(users: List<User>, days: List<AttendanceDay>, izin: List<IzinRecord>, larkam: List<LarkamRecord>): List<StudentAttendanceItem> {
+    val daysByUser = days.associateBy { it.userId }
+    val izinByUser = izin.filter { it.status == com.gynda.fridaystm.util.IzinStatus.APPROVED }
+        .sortedWith(compareBy<IzinRecord> { it.tipe == com.gynda.fridaystm.util.IzinTypeValue.SAKIT }.thenBy { it.id })
+        .associateBy { it.userId }
+    val distances = larkam.groupBy { it.userId }.mapValues { (_, records) -> records.sumOf {
+        if (it.distanceKm != 0f) it.distanceKm.toDouble() else it.distanceMeters / 1000.0
+    } }
+    return users.distinctBy { it.uid }.sortedBy { it.nama }.map { user ->
+        val day = daysByUser[user.uid]
+        val permit = izinByUser[user.uid].takeIf { day == null }
+        val status = when (day?.status) {
+            AttendanceDayStatus.COMPLETE -> StudentPresenceStatus.HADIR
+            AttendanceDayStatus.PARTIAL -> StudentPresenceStatus.PARTIAL
+            AttendanceDayStatus.LEGACY -> StudentPresenceStatus.LEGACY
+            AttendanceDayStatus.NEEDS_REVIEW -> StudentPresenceStatus.NEEDS_REVIEW
+            null -> if (permit != null) StudentPresenceStatus.IZIN else StudentPresenceStatus.BELUM
+        }
+        StudentAttendanceItem(user, status, day?.presensi, permit, distances[user.uid], day)
+    }
+}
+
+fun calculateDayTeacherStats(items: List<StudentAttendanceItem>): TeacherStats = TeacherStats(
+    totalHadir = items.count { it.day?.countsAsPresent == true },
+    totalIzin = items.count { it.status == StudentPresenceStatus.IZIN },
+    totalBelum = items.count { it.status == StudentPresenceStatus.BELUM },
+    totalNeedsReview = items.count { it.status == StudentPresenceStatus.NEEDS_REVIEW },
+    totalLarkamKm = items.sumOf { it.larkamDistanceKm ?: 0.0 },
+)
 
 /** Build student list with status by joining users vs presensi/izin maps. */
 fun buildStudentAttendanceList(

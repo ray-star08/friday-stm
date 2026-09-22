@@ -10,7 +10,8 @@ import com.gynda.fridaystm.data.model.StudentAttendanceItem
 import com.gynda.fridaystm.data.model.TeacherStats
 import com.gynda.fridaystm.data.model.buildStudentAttendanceList
 import com.gynda.fridaystm.data.model.calculateTeacherStats
-import com.gynda.fridaystm.data.model.earliestDailyPresensi
+import com.gynda.fridaystm.data.model.buildDayAttendanceList
+import com.gynda.fridaystm.data.model.calculateDayTeacherStats
 import com.gynda.fridaystm.data.repository.AuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseTeacherDashboardRepository
@@ -27,6 +28,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -64,74 +70,54 @@ class TeacherDashboardViewModel(
     // refresh availableClasses once at init (non-realtime)
     private val _availableClasses = MutableStateFlow(TeacherDashboardDefaults.AVAILABLE_CLASSES)
 
+    private val refreshGeneration = MutableStateFlow(0)
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     val selectedClass: StateFlow<String> = _selectedClass.asStateFlow()
     val selectedDate: StateFlow<String> = _selectedDate.asStateFlow()
 
-    // Combine class/date into realtime streams → aggregated state.
-    // Each filter change flatMapLatest-cancels the previous 4 listeners.
-    val uiState: StateFlow<TeacherDashboardUiState> =
-        combine(_selectedClass, _selectedDate, _availableClasses) { k, d, classes -> Triple(k, d, classes) }
-            .flatMapLatest { (kelas, date, classes) ->
-                combine(
-                    repository.observeUsersByClass(kelas),
-                    repository.observePresensi(kelas, date),
-                    repository.observeIzin(kelas, date),
-                    repository.observeLarkam(kelas, date),
-                ) { users, presensi, izin, larkam ->
-                    val presensiByUser = earliestDailyPresensi(presensi).associateBy { it.userId }
-                    val izinByUser = izin.filter { it.status == com.gynda.fridaystm.util.IzinStatus.APPROVED }.associateBy { it.userId }
-                    // Larkam stream returns all classes for the date; narrow to this roster.
-                    val userIdsInClass = users.map { it.uid }.toSet()
-                    val classLarkam = larkam.filter { it.userId in userIdsInClass }
-                    val larkamByUser = classLarkam.associateBy { it.userId }
-
-                    val stats = calculateTeacherStats(
-                        totalStudents = users.size,
-                        hadirUserIds = presensiByUser.keys,
-                        izinUserIds = izinByUser.keys,
-                        larkamRecords = classLarkam,
-                    )
-                    val students = buildStudentAttendanceList(
-                        users = users.sortedBy { it.nama },
-                        presensiByUserId = presensiByUser,
-                        izinByUserId = izinByUser,
-                        larkamByUserId = larkamByUser,
-                    )
-                    TeacherDashboardUiState(
-                        selectedClass = kelas,
-                        selectedDate = date,
-                        availableClasses = classes,
-                        isLoading = false,
-                        stats = stats,
-                        students = students,
-                        error = null,
-                    )
+    // An error terminates only the current request, not future refresh/auth changes.
+    val uiState: StateFlow<TeacherDashboardUiState> = combine(
+        _selectedClass, _selectedDate, _availableClasses, refreshGeneration, authRepository.observeAuthState(),
+    ) { kelas, date, classes, generation, uid -> DashboardRequest(kelas, date, classes, generation, uid) }
+        .flatMapLatest { request ->
+            flow {
+                val initial = TeacherDashboardUiState(selectedClass = request.kelas, selectedDate = request.date,
+                    availableClasses = request.classes, isLoading = true)
+                emit(initial)
+                if (request.uid == null) {
+                    emit(initial.copy(isLoading = false, error = "Sesi berakhir. Silakan login ulang."))
+                } else {
+                    // Roster changes invalidate all joined evidence. Re-open dependent streams
+                    // and expose Loading, never a fabricated successful-empty attendance list.
+                    emitAll(repository.observeUsersByClass(request.kelas)
+                        .map { users -> users.filter { it.kelas == request.kelas }.distinctBy { it.uid } }
+                        .distinctUntilChanged()
+                        .flatMapLatest { users ->
+                            flow {
+                                emit(initial)
+                                emitAll(combine(
+                                    repository.observePresensi(request.kelas, request.date),
+                                    repository.observeIzin(request.kelas, request.date),
+                                    repository.observeLarkam(request.kelas, request.date),
+                                ) { days, izin, larkam ->
+                                    val students = buildDayAttendanceList(users, days.filter { it.date == request.date },
+                                        izin.filter { it.startDate <= request.date && request.date <= it.endDate }, larkam)
+                                    initial.copy(isLoading = false, students = students, stats = calculateDayTeacherStats(students))
+                                })
+                            }
+                        }.buffer(0))
                 }
+            }.catch { e ->
+                emit(TeacherDashboardUiState(selectedClass = request.kelas, selectedDate = request.date,
+                    availableClasses = request.classes, isLoading = false, error = e.message ?: "Gagal memuat data"))
             }
-            .catch { e ->
-                emit(
-                    TeacherDashboardUiState(
-                        selectedClass = _selectedClass.value,
-                        selectedDate = _selectedDate.value,
-                        availableClasses = _availableClasses.value,
-                        isLoading = false,
-                        error = e.message ?: "Gagal memuat data",
-                    )
-                )
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = TeacherDashboardUiState(
-                    selectedClass = _selectedClass.value,
-                    selectedDate = _selectedDate.value,
-                    availableClasses = _availableClasses.value,
-                    isLoading = true,
-                ),
-            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TeacherDashboardUiState(
+            selectedClass = _selectedClass.value, selectedDate = _selectedDate.value))
+
+    private data class DashboardRequest(val kelas: String, val date: String, val classes: List<String>, val generation: Int, val uid: String?)
 
     fun onClassSelected(kelas: String) {
         if (kelas.isNotBlank()) _selectedClass.value = kelas
@@ -144,11 +130,7 @@ class TeacherDashboardViewModel(
 
     fun refresh() {
         if (_isRefreshing.value) return
-        _isRefreshing.value = true
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(600)
-            _isRefreshing.value = false
-        }
+        refreshGeneration.value += 1
     }
 
     fun refreshAvailableClasses() {
