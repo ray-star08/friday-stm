@@ -24,9 +24,12 @@ fun StudentStatusBadge(
 ) {
     val (label, container, content) = when (status) {
         StudentPresenceStatus.HADIR -> {
-            val t = if (!time.isNullOrBlank()) "Hadir - $time WIB" else "Hadir"
+            val t = if (!time.isNullOrBlank()) "Lengkap - $time WIB" else "Lengkap"
             Triple(t, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
         }
+        StudentPresenceStatus.PARTIAL -> Triple("Belum checkout", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        StudentPresenceStatus.LEGACY -> Triple("Selfie lama", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        StudentPresenceStatus.NEEDS_REVIEW -> Triple("Perlu ditinjau", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
         StudentPresenceStatus.IZIN -> Triple(
             "Izin / Sakit",
             MaterialTheme.colorScheme.tertiaryContainer,

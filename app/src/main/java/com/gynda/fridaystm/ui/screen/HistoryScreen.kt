@@ -56,6 +56,12 @@ import coil3.compose.AsyncImage
 import com.gynda.fridaystm.R
 import com.gynda.fridaystm.data.model.ApelStamp
 import com.gynda.fridaystm.data.model.AttendanceRecord
+import com.gynda.fridaystm.data.model.AttendanceDay
+import com.gynda.fridaystm.data.model.AttendanceDayStatus
+import com.gynda.fridaystm.data.model.schoolCaptureTime
+import java.time.format.DateTimeFormatter
+import androidx.compose.ui.platform.testTag
+import com.gynda.fridaystm.data.model.AttendanceDayProjector
 import com.gynda.fridaystm.data.model.PembiasaanStamp
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
 import com.gynda.fridaystm.util.ActivityType
@@ -81,7 +87,7 @@ fun HistoryContent(
     state: HistoryUiState,
     modifier: Modifier = Modifier,
 ) {
-    var selected by remember { mutableStateOf<AttendanceRecord?>(null) }
+    var selected by remember(state) { mutableStateOf<AttendanceDay?>(null) }
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(Spacing.s20),
@@ -99,14 +105,50 @@ fun HistoryContent(
             HistoryUiState.Loading -> item { CenteredSpinner() }
             HistoryUiState.Empty -> item { CenteredMessage(stringResource(R.string.history_empty)) }
             is HistoryUiState.Error -> item { CenteredMessage(stringResource(state.messageResId)) }
-            is HistoryUiState.Success -> items(state.records, key = { it.docId }) { record ->
-                AttendanceHistoryCard(record, onClick = { selected = record })
+            is HistoryUiState.Success -> items(state.records, key = { it.id }) { day ->
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.s8)) {
+                    Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge,
+                        color = if (day.status == AttendanceDayStatus.NEEDS_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    if (day.attendance != null) {
+                        AttendanceHistoryCard(day.attendance, onClick = { selected = day })
+                    } else {
+                        Card(onClick = { selected = day }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(Spacing.s16)) {
+                                Text(day.date, style = MaterialTheme.typography.titleMedium)
+                                Text(day.time.ifBlank { "Jam tidak tersedia" }, style = MaterialTheme.typography.bodyMedium)
+                                Text("Fase dan penyelesaian tidak tersedia pada data lama.", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-    selected?.let { rec ->
-        AttendanceDetailDialog(record = rec, onDismiss = { selected = null })
+    selected?.let { day ->
+        if (day.attendance != null) {
+            AttendanceDetailDialog(day = day, onDismiss = { selected = null })
+        } else {
+            Dialog(onDismissRequest = { selected = null }) {
+                Card(Modifier.testTag("legacy-attendance-detail")) {
+                    Column(Modifier.verticalScroll(rememberScrollState()).padding(Spacing.s16)) {
+                        Text(day.date, style = MaterialTheme.typography.titleLarge)
+                        Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge)
+                        Text(day.time)
+                        Text("Fase dan penyelesaian tidak tersedia pada data lama.")
+                        if (day.imageUrl.isNotBlank()) AsyncImage(day.imageUrl, "Bukti selfie lama", modifier = Modifier.fillMaxWidth().height(220.dp))
+                        TextButton(onClick = { selected = null }) { Text("Tutup") }
+                    }
+                }
+            }
+        }
     }
+}
+
+private fun dayLabel(status: AttendanceDayStatus): String = when (status) {
+    AttendanceDayStatus.COMPLETE -> "Lengkap"
+    AttendanceDayStatus.PARTIAL -> "Sebagian"
+    AttendanceDayStatus.NEEDS_REVIEW -> "Perlu ditinjau"
+    AttendanceDayStatus.LEGACY -> "Data lama"
 }
 
 /**
@@ -229,14 +271,16 @@ private fun ValidityBadge(valid: Boolean, modifier: Modifier = Modifier) {
 /** Fullscreen detail for one attendance day — large selfies + map open. */
 @Composable
 private fun AttendanceDetailDialog(
-    record: AttendanceRecord,
+    day: AttendanceDay,
     onDismiss: () -> Unit,
 ) {
+    val record = day.attendance ?: return
     val context = LocalContext.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.testTag("canonical-attendance-detail").fillMaxWidth().padding(16.dp)) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 Text(record.date, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge)
                 Text("Kelas ${record.grade} • ${record.status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 record.apel?.takeIf { it.checkedIn }?.let { apel ->
@@ -281,6 +325,17 @@ private fun AttendanceDetailDialog(
                     Text("Check-out: ${co.time}", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(12.dp))
                 }
+                day.presensi?.let { legacy ->
+                    Text("Bukti umum data lama", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    val captureTime = schoolCaptureTime(legacy.timestamp).format(DateTimeFormatter.ofPattern("HH:mm"))
+                    Text("Jam capture (WIB): $captureTime", style = MaterialTheme.typography.bodySmall)
+                    if (legacy.imageUrl.isNotBlank()) {
+                        AsyncImage(model = legacy.imageUrl, contentDescription = "Bukti foto umum data lama",
+                            contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().height(220.dp))
+                    }
+                    Text("Bukan bukti fase atau penyelesaian kanonis.", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(12.dp))
+                }
                 Text("Tap di luar untuk tutup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
@@ -323,7 +378,7 @@ private fun HistorySuccessPreview() {
     FridaySTMTheme {
         HistoryContent(
             state = HistoryUiState.Success(
-                listOf(
+                AttendanceDayProjector.merge(listOf(
                     AttendanceRecord(
                         uid = "u1",
                         date = "2026-08-14",
@@ -344,7 +399,7 @@ private fun HistorySuccessPreview() {
                         grade = 11,
                         apel = ApelStamp(checkedIn = true, time = "06:05", lat = -6.87, lng = 107.54, valid = true),
                     ),
-                ),
+                ), emptyList()),
             ),
         )
     }

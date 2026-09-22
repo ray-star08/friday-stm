@@ -117,11 +117,11 @@
 
     <!-- Profile stats summary -->
     <string name="profile_stats_title">Ringkasan</string>
-    <string name="profile_stats_hadir">Hadir</string>
+    <string name="profile_stats_hadir">Tercatat</string>
     <string name="profile_stats_hadir_unit">Total Hari</string>
     <string name="profile_stats_larkam">Larkam</string>
     <string name="profile_stats_larkam_unit">Total KM</string>
-    <string name="profile_stats_izin">Izin</string>
+    <string name="profile_stats_izin">Pengajuan izin</string>
     <string name="profile_stats_izin_unit">Total Berkas</string>
 
     <!-- Profile account info -->
@@ -223,7 +223,7 @@
     <string name="teacher_dashboard_list_title">Daftar Siswa (%1$d)</string>
     <string name="teacher_dashboard_empty">Belum ada data siswa untuk kelas ini</string>
     <string name="teacher_filter_kelas">Kelas</string>
-    <string name="teacher_stat_hadir">Hadir</string>
+    <string name="teacher_stat_hadir">Tercatat</string>
     <string name="teacher_stat_izin">Izin/Sakit</string>
     <string name="teacher_stat_belum">Belum Absen</string>
     <string name="teacher_stat_larkam">Total Larkam</string>

@@ -102,6 +102,43 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun fetchStats_failure_isErrorNotSuccessfulZero() = runTest(dispatcher) {
+        val stats = object : ProfileStatsRepository {
+            override suspend fun getStats(userId: String): Result<ProfileStats> =
+                Result.failure(IllegalStateException("permission denied"))
+        }
+        val vm = viewModel(signedInAuth(), stats)
+        val job = backgroundScope.launch { vm.uiState.collect() }
+        runCurrent()
+
+        assertEquals(UserProfileUiState.Error(ProfileViewModel.MSG_LOAD_FAILED), vm.uiState.value)
+        job.cancel()
+    }
+
+    @Test
+    fun thrownStatsFailure_doesNotTerminateLaterAccountLoads() = runTest(dispatcher) {
+        val nextUser = fakeUser.copy(uid = "next")
+        val auth = FakeAuthRepository(
+            profiles = mapOf(fakeUser.uid to fakeUser, nextUser.uid to nextUser),
+            initialUid = fakeUser.uid,
+        )
+        val stats = object : ProfileStatsRepository {
+            override suspend fun getStats(userId: String): Result<ProfileStats> {
+                if (userId == fakeUser.uid) error("offline")
+                return Result.success(fakeStats)
+            }
+        }
+        val vm = viewModel(auth, stats)
+        backgroundScope.launch { vm.uiState.collect() }
+        runCurrent()
+        assertEquals(UserProfileUiState.Error(ProfileViewModel.MSG_LOAD_FAILED), vm.uiState.value)
+
+        auth.emitAuthState(nextUser.uid)
+        runCurrent()
+        assertEquals(nextUser, (vm.uiState.value as UserProfileUiState.Success).user)
+    }
+
+    @Test
     fun logout_clearsUserSession_andTriggersNavToLogin() = runTest(dispatcher) {
         val auth = signedInAuth()
         val vm = viewModel(auth)

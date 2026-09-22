@@ -18,16 +18,15 @@ import java.util.Locale
  *
  * Layout: header (title, kelas, periode) + table header + rows.
  * Handles pagination automatically when rows exceed page height.
- * Falls back to a minimal text-based PDF on Robolectric where the native
- * shadow throws "document is closed!".
+ * Native generation errors propagate to the export error state. No fake PDF fallback.
  */
 object PdfReportGenerator {
 
     private const val PAGE_WIDTH = 595 // A4 at 72dpi ~ 595pt width
     private const val PAGE_HEIGHT = 842 // A4 height
     private const val MARGIN = 24f
-    private const val HEADER_HEIGHT = 80f
-    private const val ROW_HEIGHT = 20f
+    private const val HEADER_HEIGHT = 122f
+    private const val ROW_HEIGHT = 44f
     private const val TABLE_HEADER_HEIGHT = 22f
 
     private val dateFmt = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.forLanguageTag("id-ID"))
@@ -78,7 +77,7 @@ object PdfReportGenerator {
             }
 
             val colWeights = floatArrayOf(0.5f, 2.5f, 1.5f, 0.8f, 0.8f, 0.7f, 0.7f, 0.7f, 1.2f)
-            val colTitles = arrayOf("No", "Nama", "NIS", "Hadir", "Telat", "Izin", "Sakit", "Alfa", "Jarak(km)")
+            val colTitles = arrayOf("No", "Nama", "NIS", "<07:00", ">=07:00", "Izin", "Sakit", "Belum", "Jarak(km)")
             val totalWeight = colWeights.sum()
             val tableWidth = PAGE_WIDTH - 2 * MARGIN
             val colWidths = colWeights.map { it / totalWeight * tableWidth }.toFloatArray()
@@ -94,7 +93,10 @@ object PdfReportGenerator {
                 c.drawText("Kelas: $kelas", MARGIN, yPos + 32f, subtitlePaint)
                 c.drawText("Periode: $periode", MARGIN, yPos + 44f, subtitlePaint)
                 c.drawText("Total Siswa: ${reports.size}", MARGIN, yPos + 56f, subtitlePaint)
-                c.drawLine(MARGIN, yPos + 64f, PAGE_WIDTH - MARGIN, yPos + 64f, linePaint)
+                c.drawText("Jam tampilan/capture, bukan verifikasi keterlambatan.", MARGIN, yPos + 72f, subtitlePaint)
+                c.drawText("Belum = belum tercatat pada tanggal teramati, bukan alfa kalender resmi.", MARGIN, yPos + 86f, subtitlePaint)
+                c.drawText("Kelompok waktu hanya untuk jam HH:mm yang valid.", MARGIN, yPos + 100f, subtitlePaint)
+                c.drawLine(MARGIN, yPos + 108f, PAGE_WIDTH - MARGIN, yPos + 108f, linePaint)
             }
 
             fun drawTableHeader(c: Canvas, top: Float) {
@@ -134,6 +136,9 @@ object PdfReportGenerator {
                     c.drawText(text, cx, top + 13f, cellTextPaint)
                     x += colWidths[idx]
                 }
+                c.drawText("Lengkap: ${report.totalComplete} | Parsial: ${report.totalPartial} | Legacy: ${report.totalLegacy} | Perlu tinjauan: ${report.totalNeedsReview}",
+                    MARGIN + 4f, top + 27f, cellTextPaint)
+                c.drawText("Jam tidak tersedia/tidak valid: ${report.totalUnknownTime} | Sesi Larkam: ${report.totalLarkamSessions}", MARGIN + 4f, top + 39f, cellTextPaint)
                 c.drawLine(MARGIN, top + ROW_HEIGHT, PAGE_WIDTH - MARGIN, top + ROW_HEIGHT, linePaint)
             }
 
@@ -168,29 +173,14 @@ object PdfReportGenerator {
             val file = File(context.cacheDir, fileName)
             file.outputStream().use { pdfDocument.writeTo(it) }
             file
-        } catch (e: Throwable) {
-            // Robolectric throws "document is closed!" — fallback to simple text PDF
-            val fileName = "rekap_${kelas.replace(" ", "_")}_${formatFileDate(startDate)}_${formatFileDate(endDate)}.pdf"
-            val file = File(context.cacheDir, fileName)
-            val fallback = buildString {
-                append("%PDF-1.4\n")
-                append("Rekap Kehadiran & Larkam - $kelas\n")
-                append("Periode: ${formatDate(startDate)} - ${formatDate(endDate)}\n")
-                append("Total Siswa: ${reports.size}\n")
-                reports.forEachIndexed { idx, r ->
-                    append("${idx + 1}. ${r.studentName} ${r.studentNis} H:${r.totalHadir} T:${r.totalTerlambat} I:${r.totalIzin} S:${r.totalSakit} A:${r.totalAlfa} ${(r.totalLarkamDistanceMeters / 1000.0)}\n")
-                }
-            }
-            file.writeText(fallback, Charsets.UTF_8)
-            file
         } finally {
             try { pdfDocument?.close() } catch (_: Exception) {}
         }
     }
 
     private fun formatDate(millis: Long): String =
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(dateFmt)
+        Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Jakarta")).toLocalDate().format(dateFmt)
 
     private fun formatFileDate(millis: Long): String =
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Jakarta")).toLocalDate().toString()
 }

@@ -162,7 +162,7 @@ fun TeacherDashboardContent(
             },
         )
     }
-    var selectedStudent by remember { mutableStateOf<StudentAttendanceItem?>(null) }
+    var selectedStudent by remember(state.students, state.isLoading, state.error) { mutableStateOf<StudentAttendanceItem?>(null) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     if (showDatePicker) {
@@ -192,9 +192,9 @@ fun TeacherDashboardContent(
         }
     }
 
-    if (selectedStudent != null) {
+    selectedStudent?.let { selected ->
         StudentDetailBottomSheet(
-            item = selectedStudent!!,
+            item = selected,
             onDismiss = { selectedStudent = null },
         )
     }
@@ -236,7 +236,7 @@ fun TeacherDashboardContent(
             }
             if (state.isLoading) {
                 item { TeacherDashboardSkeleton() }
-            } else {
+            } else if (state.error == null) {
                 item { TeacherSummaryGrid(stats = state.stats) }
             }
             if (onOpenIzinApproval != null) {
@@ -366,6 +366,8 @@ private fun TeacherSummaryGrid(
                 modifier = Modifier.weight(1f),
             )
         }
+        Text("Perlu ditinjau: ${stats.totalNeedsReview} siswa", style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
             StatCard(
                 label = stringResource(R.string.teacher_stat_belum),
@@ -486,7 +488,7 @@ private fun StudentAttendanceCard(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(Spacing.s4))
-                val time = item.presensi?.timestamp?.let { extractTime(it) }
+                val time = item.day?.time ?: item.presensi?.timestamp?.let { extractTime(it) }
                 StudentStatusBadge(status = item.status, time = time)
             }
             Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -519,20 +521,18 @@ private fun StudentDetailBottomSheet(
             }
 
             // Status badge large
-            val (badgeText, badgeColor, badgeContainer) = when (item.status) {
-                StudentPresenceStatus.HADIR -> Triple("Hadir", MaterialTheme.colorScheme.onPrimary, MaterialTheme.colorScheme.primary)
-                StudentPresenceStatus.IZIN -> Triple("Izin / Sakit", MaterialTheme.colorScheme.onTertiaryContainer, MaterialTheme.colorScheme.tertiaryContainer)
-                StudentPresenceStatus.BELUM -> Triple("Belum Absen", MaterialTheme.colorScheme.onErrorContainer, MaterialTheme.colorScheme.errorContainer)
-            }
-            Surface(color = badgeContainer, shape = RoundedCornerShape(50)) {
-                Text(badgeText, style = MaterialTheme.typography.labelLarge, color = badgeColor, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            StudentStatusBadge(status = item.status, time = item.day?.time)
+
+            item.day?.attendance?.checkout?.takeIf { it.checkedOut }?.let {
+                Text("Check-out: ${it.time}", style = MaterialTheme.typography.bodyMedium)
             }
 
             // Foto bukti (presensi)
-            if (item.presensi?.imageUrl?.isNotBlank() == true) {
+            val evidenceUrl = item.day?.imageUrl ?: item.presensi?.imageUrl.orEmpty()
+            if (evidenceUrl.isNotBlank()) {
                 Text(stringResource(R.string.teacher_detail_foto), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 AsyncImage(
-                    model = item.presensi.imageUrl,
+                    model = evidenceUrl,
                     contentDescription = "Bukti presensi ${item.user.nama}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
@@ -552,8 +552,10 @@ private fun StudentDetailBottomSheet(
             }
 
             // GPS location
-            val lat = item.presensi?.lat
-            val lng = item.presensi?.lng
+            val stamp = item.day?.attendance?.pembiasaan
+            val apel = item.day?.attendance?.apel
+            val lat = stamp?.lat ?: apel?.lat ?: item.presensi?.lat
+            val lng = stamp?.lng ?: apel?.lng ?: item.presensi?.lng
             if (lat != null && lng != null) {
                 Text(stringResource(R.string.teacher_detail_lokasi), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(String.format(Locale.US, "%.6f, %.6f", lat, lng), style = MaterialTheme.typography.bodyMedium)

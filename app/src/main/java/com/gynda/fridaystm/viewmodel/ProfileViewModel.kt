@@ -64,8 +64,9 @@ class ProfileViewModel(
 
     val uiState: StateFlow<UserProfileUiState> = authRepository.observeAuthState()
         .distinctUntilChanged()
-        .flatMapLatest { uid -> profileFlow(uid) }
-        .catch { emit(UserProfileUiState.Error(MSG_LOAD_FAILED)) }
+        .flatMapLatest { uid ->
+            profileFlow(uid).catch { emit(UserProfileUiState.Error(MSG_LOAD_FAILED)) }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
@@ -101,7 +102,10 @@ class ProfileViewModel(
                 emit(UserProfileUiState.Error(MSG_LOAD_FAILED))
                 return@flow
             }
-        val stats = statsRepository.getStats(uid).getOrDefault(ProfileStats())
+        val stats = statsRepository.getStats(uid).getOrElse {
+            emit(UserProfileUiState.Error(MSG_LOAD_FAILED))
+            return@flow
+        }
         emit(
             UserProfileUiState.Success(
                 user = user,

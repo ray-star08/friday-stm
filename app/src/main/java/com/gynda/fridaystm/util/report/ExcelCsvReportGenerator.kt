@@ -44,8 +44,11 @@ object ExcelCsvReportGenerator {
             writer.newLine()
             writer.newLine()
 
+            writer.write(csvEscape("Jam tampilan/capture, bukan verifikasi keterlambatan; hanya jam HH:mm yang valid masuk kelompok waktu; belum tercatat bukan alfa kalender resmi."))
+            writer.newLine()
+
             // Column header
-            val header = listOf("No", "Nama", "NIS", "Kelas", "Hadir", "Terlambat", "Izin", "Sakit", "Alfa", "Total Larkam (km)", "Sessions")
+            val header = listOf("No", "Nama", "NIS", "Kelas", "Tercatat sebelum 07:00", "Tercatat mulai 07:00", "Jam tidak tersedia/tidak valid", "Izin", "Sakit", "Belum tercatat", "Lengkap", "Parsial", "Legacy", "Perlu tinjauan", "Total Larkam (km)", "Sessions")
             writer.write(header.joinToString(",") { csvEscape(it) })
             writer.newLine()
 
@@ -58,9 +61,14 @@ object ExcelCsvReportGenerator {
                     r.kelas,
                     r.totalHadir.toString(),
                     r.totalTerlambat.toString(),
+                    r.totalUnknownTime.toString(),
                     r.totalIzin.toString(),
                     r.totalSakit.toString(),
                     r.totalAlfa.toString(),
+                    r.totalComplete.toString(),
+                    r.totalPartial.toString(),
+                    r.totalLegacy.toString(),
+                    r.totalNeedsReview.toString(),
                     String.format(Locale.US, "%.2f", r.totalLarkamDistanceMeters / 1000.0),
                     r.totalLarkamSessions.toString(),
                 )
@@ -78,8 +86,8 @@ object ExcelCsvReportGenerator {
     }
 
     private fun formatDate(millis: Long): String =
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(dateFmt)
+        Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Jakarta")).toLocalDate().format(dateFmt)
 
     private fun formatFileDate(millis: Long): String =
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Jakarta")).toLocalDate().toString()
 }
