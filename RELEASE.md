@@ -1,7 +1,11 @@
 # RELEASE.md — Prosedur Rilis Friday STM
 
 Panduan operasional untuk melepas perubahan backend (Firestore Rules + reference
-data). Urutan di bawah **wajib berurutan**: rules dulu, baru seed, baru APK.
+data). Untuk database baru: rules dulu, reference data, lalu APK.
+
+**Database demo yang sudah berisi data:** ikuti [penyelarasan geofence demo](docs/DEMO_GEOFENCE.md).
+Jangan menjalankan seeder untuk mengubah radius; cadangkan dan patch dokumen yang
+ada agar ID, rotasi, dan penyuntingan manual tidak tertimpa.
 
 | Artefak | Sumber | Cara rilis |
 |---|---|---|
@@ -36,11 +40,12 @@ path — tidak menyentuh data):
 
 Lalu:
 
-```bash
-# 1. Lihat rules yang AKTIF sekarang — simpan sebagai cadangan sebelum menimpa.
-firebase firestore:rules:get > firestore.rules.deployed.bak
+Cadangkan rules yang **aktif** melalui Firebase Console atau Firebase Rules API
+sebelum menggantinya. Simpan juga dokumen reference yang akan diubah. CLI tidak
+menyediakan perintah `firestore:rules:get`.
 
-# 2. Deploy.
+```bash
+# Deploy hanya sesudah cadangan dan verifikasi target project selesai.
 firebase deploy --only firestore:rules
 ```
 
@@ -165,10 +170,10 @@ Isi yang ditulis — satu `batch.commit()`, atomik:
 
 | Koleksi / doc id | label | activity | lat, lng | radiusMeter |
 |---|---|---|---|---|
-| `geofences/apel` | Lapangan Utama | `apel` | -6.87321, 107.54223 | 50 |
-| `geofences/talim` | Masjid Al-Ikhlas | `talim` | -6.87350, 107.54210 | 40 |
-| `geofences/larkam` | Area Lari Kampung | `larkam` | -6.87300, 107.54280 | 150 |
-| `geofences/senam` | Lapangan Basket | `senam` | -6.87290, 107.54250 | 40 |
+| `geofences/apel` (legacy) | Lapangan Utama | `apel` | -6.902803655711758, 107.53864267712402 | 120 |
+| `geofences/talim` | Masjid Al-Ikhlas | `talim` | `SCHOOL_LATITUDE`, `SCHOOL_LONGITUDE` | 180 |
+| `geofences/larkam` | Area Lari Kampung | `larkam` | `SCHOOL_LATITUDE`, `SCHOOL_LONGITUDE` | 180 |
+| `geofences/senam` | Lapangan Basket | `senam` | `SCHOOL_LATITUDE`, `SCHOOL_LONGITUDE` | 180 |
 | `rotations/default_schedule` | — | mapping grade→activity (`weekOfYear: 0`) | — | — |
 
 Idempoten: semua tulisan memakai `set()` ke id deterministik, jadi menjalankan
@@ -201,10 +206,10 @@ skenario di mana siswa kehilangan kegiatan karena dokumen ini.
 
 ## 4. Urutan rilis
 
-1. `firebase firestore:rules:get > firestore.rules.deployed.bak` — cadangkan.
+1. Cadangkan rules aktif melalui Firebase Console atau Firebase Rules API, beserta dokumen reference yang akan diubah (CLI tidak menyediakan `firestore:rules:get`).
 2. Verifikasi 3 skenario §2 di Rules Playground.
 3. `firebase deploy --only firestore:rules`.
-4. Jalankan `seedInitialData()` sebagai admin, cek 5 dokumen di console.
+4. Hanya untuk database baru, jalankan `seedInitialData()` sebagai admin dan cek dokumen di console. Database yang sudah dipakai: patch target dengan precondition `updateTime`, jangan overwrite melalui seeder.
 5. `./gradlew app:testDebugUnitTest` — harus BUILD SUCCESSFUL.
 6. `./gradlew app:assembleRelease`, lalu distribusikan APK/AAB.
 
@@ -215,8 +220,11 @@ belum jalan. Kalau tombol check-in tak pernah aktif — langkah 4 belum jalan.
 ## 5. Rollback
 
 Rules: `firebase deploy --only firestore:rules` memakai file cadangan dari
-langkah 1 (salin balik ke `firestore.rules` dulu). Reference data: `set()`
-idempoten, jalankan ulang seeder. Dokumen `attendance` **tidak** bisa di-rollback
-dari client — `allow delete: if false`; koreksi lewat console.
+langkah 1 (salin balik ke `firestore.rules` dulu, pastikan target project benar).
+Reference data: pulihkan hanya field/dokumen yang terdampak dari cadangan,
+setelah membandingkan keadaan terbaru dan dengan precondition `updateTime` agar
+tidak menimpa perubahan orang lain. **Jangan rerun seeder untuk rollback.**
+Dokumen `attendance` **tidak** bisa di-rollback dari client — `allow delete: if false`;
+perubahan administratif membutuhkan persetujuan terpisah.
 
 

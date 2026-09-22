@@ -1,10 +1,10 @@
 package com.gynda.fridaystm.util
 
-// --- School geofence for presensi selfie (task: Validasi Radius Area Sekolah) ---
-// SMKN 1 Cimahi — Jl. Mahar Martanegara No.48, Leuwigajah (30.129 m² ≈3 ha, 3.4 ha versi STM Pembangunan)
-const val SCHOOL_LATITUDE = -6.902803655711758
-const val SCHOOL_LONGITUDE = 107.53864267712402
-const val MAX_RADIUS_METERS = 180.0f // 180m = 10.2 ha coverage, aman untuk 3 ha + drift GPS 20-30m
+// Shared demo geofence for SMKN 1 Cimahi: owner-approved pin, not a surveyed campus boundary.
+// Keep live Firestore activity fences aligned with these camera/seeder defaults (docs/DEMO_GEOFENCE.md).
+const val SCHOOL_LATITUDE = -6.902144277968082
+const val SCHOOL_LONGITUDE = 107.53840454446247
+const val MAX_RADIUS_METERS = 180.0f // Demo tolerance; the circle also includes some off-campus area.
 
 /**
  * Single source of truth for Firestore collection names, wire-level string

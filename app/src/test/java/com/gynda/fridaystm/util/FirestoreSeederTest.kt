@@ -48,6 +48,24 @@ class FirestoreSeederTest {
     }
 
     @Test
+    fun `active demo seeds use the camera center and enforce its 180m boundary`() {
+        Activity.entries.forEach { activity ->
+            val fence = SEED_GEOFENCES.single { it.activity == activity.toWireValue() }
+            assertEquals(-6.902144277968082, fence.lat, 0.0)
+            assertEquals(107.53840454446247, fence.lng, 0.0)
+            assertEquals(180, fence.radiusMeter)
+            for (bearing in listOf(0.0, 90.0, 180.0, 270.0)) {
+                for (distance in listOf(175.0, 185.0)) {
+                    val (lat, lng) = pointFromDemoPin(distance, bearing)
+                    val inside = com.gynda.fridaystm.domain.isInsideGeofence(lat, lng, fence.lat, fence.lng, fence.radiusMeter)
+                    assertEquals("$activity at ${distance}m bearing $bearing", distance < 180.0, inside)
+                    assertEquals("camera/activity disagreement", inside, isWithinSchoolRadius(lat, lng))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `fallback rotation maps all three grades and matches the cyclic formula`() {
         assertEquals(setOf("10", "11", "12"), FALLBACK_ROTATION.mapping.keys)
         (10..12).forEach { grade ->

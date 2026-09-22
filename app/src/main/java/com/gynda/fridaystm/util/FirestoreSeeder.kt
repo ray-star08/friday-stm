@@ -57,6 +57,9 @@ suspend fun seedInitialData(
  *
  * `apel` is seeded for completeness only — the Apel phase was removed from the
  * live flow, so nothing resolves this fence; it keeps legacy documents readable.
+ * Active activities share the approved school-wide demo pin/radius with the camera.
+ * These are demo defaults, not surveyed activity locations. Do not rerun this
+ * seeder to migrate an existing database; preserve its document IDs and overrides.
  *
  * `internal` so the unit test can assert the payload without touching Firebase.
  */
@@ -65,7 +68,7 @@ internal val SEED_GEOFENCES: List<Geofence> = listOf(
         id = ActivityType.APEL,
         label = "Lapangan Utama",
         activity = ActivityType.APEL,
-        // Center SMKN 1 Cimahi — Jl. Mahar Martanegara 48 (-6.9028036,107.5386427) selaras SCHOOL_LAT/LNG
+        // Legacy Apel reference only; not used by the active demo flow.
         lat = -6.902803655711758,
         lng = 107.53864267712402,
         radiusMeter = 120,
@@ -74,26 +77,25 @@ internal val SEED_GEOFENCES: List<Geofence> = listOf(
         id = ActivityType.TALIM,
         label = "Masjid Al-Ikhlas",
         activity = ActivityType.TALIM,
-        lat = -6.90305,
-        lng = 107.53840,
-        radiusMeter = 60,
+        lat = SCHOOL_LATITUDE,
+        lng = SCHOOL_LONGITUDE,
+        radiusMeter = MAX_RADIUS_METERS.toInt(),
     ),
     Geofence(
         id = ActivityType.LARKAM,
         label = "Area Lari Kampung",
         activity = ActivityType.LARKAM,
-        // Widest fence: a run leaves the start point by design.
-        lat = -6.90240,
-        lng = 107.53900,
-        radiusMeter = 180,
+        lat = SCHOOL_LATITUDE,
+        lng = SCHOOL_LONGITUDE,
+        radiusMeter = MAX_RADIUS_METERS.toInt(),
     ),
     Geofence(
         id = ActivityType.SENAM,
         label = "Lapangan Basket",
         activity = ActivityType.SENAM,
-        lat = -6.90250,
-        lng = 107.53820,
-        radiusMeter = 60,
+        lat = SCHOOL_LATITUDE,
+        lng = SCHOOL_LONGITUDE,
+        radiusMeter = MAX_RADIUS_METERS.toInt(),
     ),
 )
 
