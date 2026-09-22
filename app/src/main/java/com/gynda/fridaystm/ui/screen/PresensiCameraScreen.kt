@@ -87,6 +87,9 @@ import kotlinx.coroutines.launch
 fun PresensiCameraScreen(
     onSuccessNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    larkamIntent: com.gynda.fridaystm.util.LarkamCaptureIntent? = null,
+    requiresLarkamIntent: Boolean = false,
+    timeProvider: com.gynda.fridaystm.util.TimeProvider = SystemTimeProvider(),
     viewModel: PresensiCameraViewModel = viewModel(
         factory = run {
             val appContext = LocalContext.current.applicationContext
@@ -99,12 +102,15 @@ fun PresensiCameraScreen(
                 storageRepository = CloudinaryStorageRepository(),
                 presensiRepository = FirebasePresensiRepository(),
                 syncScheduler = WorkManagerPresensiSyncScheduler(appContext),
-                timeProvider = SystemTimeProvider(),
+                timeProvider = timeProvider,
             )
             PresensiCameraViewModel.factory(
                 authRepository = authRepository,
                 locationProvider = FusedLocationProvider(LocalContext.current),
-                offlineRepository = offlineRepository,
+                captureRepository = offlineRepository,
+                timeProvider = timeProvider,
+                larkamIntent = larkamIntent,
+                requiresLarkamIntent = requiresLarkamIntent,
             )
         }
     ),
@@ -217,7 +223,8 @@ fun PresensiCameraScreen(
 
             else -> CameraPreviewWithShutter(
                 uiState = uiState,
-                onImageProxy = viewModel::onImageCaptured,
+                onImageProxy = { viewModel.onPhotoCaptured(com.gynda.fridaystm.util.CameraCapturedPhoto(it)) },
+                onCameraError = viewModel::onCameraError,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -300,6 +307,7 @@ private fun PermissionFallbackContent(
 private fun CameraPreviewWithShutter(
     uiState: PresensiCameraUiState,
     onImageProxy: (ImageProxy) -> Unit,
+    onCameraError: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -335,13 +343,17 @@ private fun CameraPreviewWithShutter(
                 }
                 val providerFuture = ProcessCameraProvider.getInstance(ctx)
                 providerFuture.addListener({
-                    val provider = providerFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
+                    try {
+                        val provider = providerFuture.get()
+                        val preview = Preview.Builder().build().also {
+                            it.surfaceProvider = previewView.surfaceProvider
+                        }
+                        val selector = CameraSelector.DEFAULT_FRONT_CAMERA
+                        provider.unbindAll()
+                        provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+                    } catch (_: Exception) {
+                        onCameraError("Kamera depan tidak tersedia. Periksa izin kamera.")
                     }
-                    val selector = CameraSelector.DEFAULT_FRONT_CAMERA
-                    provider.unbindAll()
-                    provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
                 }, ContextCompat.getMainExecutor(ctx))
                 previewView
             }
@@ -393,8 +405,7 @@ private fun CameraPreviewWithShutter(
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
-                                    // ViewModel will handle via Error state if we want,
-                                    // for now ignore or could emit error via callback
+                                    onCameraError("Gagal mengambil foto. Coba lagi.")
                                 }
                             }
                         )

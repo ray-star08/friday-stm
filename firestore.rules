@@ -91,6 +91,36 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
+    // A deterministic outbox ID must be probed before an append-only create.
+    // Only an absent UUID document is probeable: existing foreign data stays denied.
+    function missingCapture(collectionName, docId) {
+      return isSignedIn() && role() in ['student', 'class_rep']
+        && docId.matches('capture_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        && !exists(/databases/$(database)/documents/$(collectionName)/$(docId));
+    }
+
+    function versionedCapture(docId, larkam) {
+      let d = request.resource.data;
+      return validPresensiCreate()
+        && d.schemaVersion == 2
+        && d.captureId is string
+        && d.captureId.matches('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        && docId == 'capture_' + d.captureId
+        && d.timestamp is string
+        && d.timestamp.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}([.][0-9]{1,9})?)?')
+        && d.imageUrl is string && d.imageUrl.matches('https://res[.]cloudinary[.]com/[^/]+/image/upload/.+')
+        && ((!d.keys().hasAny(['lat', 'lng']))
+          || (d.lat is number && d.lng is number && d.lat >= -90 && d.lat <= 90 && d.lng >= -180 && d.lng <= 180))
+        && (larkam
+          ? (d.keys().hasOnly(['schemaVersion', 'captureId', 'userId', 'timestamp', 'imageUrl', 'studentName', 'studentClass', 'lat', 'lng', 'createdAt', 'distanceKm', 'durationSeconds', 'durationFormatted', 'route', 'routeUrl'])
+            && d.distanceKm is number && d.distanceKm >= 0
+            && d.durationSeconds is int && d.durationSeconds >= 0
+            && d.durationFormatted is string
+            && d.route is list && d.route.size() <= 10000
+            && d.get('routeUrl', d.imageUrl) == d.imageUrl)
+          : d.keys().hasOnly(['schemaVersion', 'captureId', 'userId', 'timestamp', 'imageUrl', 'studentName', 'studentClass', 'lat', 'lng', 'createdAt']));
+    }
+
     // ---- users/{userId} : profiles ---------------------------------------
     match /users/{userId} {
       allow read: if isSignedIn() && (uid() == userId || isStaff());
@@ -229,7 +259,9 @@ service cloud.firestore {
     // agregat statistik Profil dan oleh guru/admin untuk dashboard monitoring.
     // Koreksi via admin tooling.
     match /larkam_records/{docId} {
-      allow create: if isSignedIn() && request.resource.data.userId == uid();
+      allow get: if missingCapture('larkam_records', docId);
+      allow create: if docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
+        ? versionedCapture(docId, true) : (isSignedIn() && request.resource.data.userId == uid());
       allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
@@ -244,7 +276,9 @@ service cloud.firestore {
 
     // ---- presensi_records/{docId} : watermarked selfie presensi ------------
     match /presensi_records/{docId} {
-      allow create: if validPresensiCreate();
+      allow get: if missingCapture('presensi_records', docId);
+      allow create: if docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
+        ? versionedCapture(docId, false) : validPresensiCreate();
       allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }

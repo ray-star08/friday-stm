@@ -13,10 +13,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -44,7 +46,9 @@ class OfflineQueueViewModel(
         viewModelScope.launch {
             authRepository.observeAuthState().distinctUntilChanged().collectLatest { uid ->
                 if (uid != null) {
-                    queue.observePendingCount(uid).filter { it > 0 }.take(1).collect {
+                    combine(queue.observePendingCount(uid), queue.observeNeedsAttentionCount(uid)) { total, attention ->
+                        total - attention
+                    }.filter { it > 0 }.take(1).collect {
                         if (authRepository.currentUid == uid) syncScheduler.resumePresensiSync()
                     }
                 }
@@ -52,10 +56,16 @@ class OfflineQueueViewModel(
         }
     }
 
+    val needsAttentionCount: StateFlow<Int> = authRepository.observeAuthState()
+        .distinctUntilChanged()
+        .flatMapLatest { uid ->
+            if (uid == null) flowOf(0) else queue.observeNeedsAttentionCount(uid).onStart { emit(0) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS), 0)
+
     val pendingCount: StateFlow<Int> = authRepository.observeAuthState()
         .distinctUntilChanged()
         .flatMapLatest { uid ->
-            if (uid == null) flowOf(0) else queue.observePendingCount(uid)
+            if (uid == null) flowOf(0) else queue.observePendingCount(uid).onStart { emit(0) }
         }
         .stateIn(
             scope = viewModelScope,

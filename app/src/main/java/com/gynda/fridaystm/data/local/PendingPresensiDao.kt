@@ -34,7 +34,14 @@ interface PendingPresensiDao {
     @Query("UPDATE pending_presensi SET statusSync = :status WHERE id = :id")
     suspend fun updateStatus(id: Int, status: String)
 
+    @Query("UPDATE pending_presensi SET uploadedImageUrl = :imageUrl WHERE id = :id")
+    suspend fun checkpointUpload(id: Int, imageUrl: String)
+
     /** Live count of unsynced rows for [userId] — drives the Dashboard banner. */
     @Query("SELECT COUNT(*) FROM pending_presensi WHERE userId = :userId")
     fun observePendingCount(userId: String): Flow<Int>
+
+    /** Retained terminal evidence for this owner; not automatically retryable. */
+    @Query("SELECT COUNT(*) FROM pending_presensi WHERE userId = :userId AND statusSync = 'NEEDS_ATTENTION'")
+    fun observeNeedsAttentionCount(userId: String): Flow<Int>
 }

@@ -37,6 +37,7 @@ class PresensiSyncWorker(
             photoCache = AppPendingPhotoCache(context),
             storageRepository = CloudinaryStorageRepository(),
             presensiRepository = FirebasePresensiRepository(),
+            captureWriter = com.gynda.fridaystm.data.repository.FirebaseCaptureWriter(),
         )
         return try {
             val summary = syncer.syncPending()

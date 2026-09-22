@@ -44,9 +44,9 @@ interface TimeProvider {
  * Pure JVM (`java.time`) — no Android framework references, so it is safe to
  * construct anywhere and keeps this file within the SKILL.md layering rules.
  */
-class SystemTimeProvider : TimeProvider {
+class SystemTimeProvider(private val clock: java.time.Clock = java.time.Clock.systemUTC()) : TimeProvider {
 
-    override fun now(): LocalDateTime = LocalDateTime.now()
+    override fun now(): LocalDateTime = LocalDateTime.now(clock.withZone(SchoolDates.zone))
 
     override fun weekOfYear(): Int =
         now().get(WeekFields.ISO.weekOfWeekBasedYear())

@@ -82,7 +82,75 @@ class OfflineFirstPresensiRepository(
     private val presensiRepository: PresensiRepository,
     private val syncScheduler: PresensiSyncScheduler,
     private val timeProvider: TimeProvider,
-) : OfflinePresensiRepository {
+    private val captureWriter: CaptureWriter = FirebaseCaptureWriter(),
+) : OfflinePresensiRepository, CaptureSubmissionRepository {
+
+    override suspend fun submitCapture(
+        draft: com.gynda.fridaystm.data.model.CaptureDraft,
+        imageBytes: ByteArray,
+    ): Result<PresensiSubmitResult> = captureResult {
+        val snapshot = draft.snapshotAndValidate()
+        require(imageBytes.isNotEmpty()) { "Foto kosong" }
+        val bytes = imageBytes.copyOf()
+        requireCaptureOwner(authRepository, snapshot.userId)
+        CaptureOutboxLock.mutex.lock()
+        try {
+            requireCaptureOwner(authRepository, snapshot.userId)
+            val existing = queue.pendingList().firstOrNull { it.userId == snapshot.userId && it.captureId == snapshot.captureId }
+            val row = if (existing != null) {
+                check(existing.toCaptureDraft() == snapshot) { "Capture ID memiliki bukti berbeda" }
+                existing
+            } else {
+                var savedPath: String? = null
+                try {
+                    val path = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        photoCache.savePendingPhoto(snapshot.userId, snapshot.timestamp, bytes).getOrThrow().also {
+                            // Retain ownership before withContext can discard its return
+                            // value when the submitting coroutine is cancelled.
+                            savedPath = it
+                        }
+                    }
+                    requireCaptureOwner(authRepository, snapshot.userId)
+                    val value = PendingPresensiEntity(
+                        userId = snapshot.userId, timestampIso = snapshot.timestamp.format(ISO_FORMATTER),
+                        latitude = snapshot.lat, longitude = snapshot.lng, imagePath = path,
+                        storageFileName = "capture_${snapshot.captureId}", studentName = snapshot.studentName,
+                        studentClass = snapshot.studentClass, createdAt = timeProvider.now().toEpochMilli(),
+                        captureId = snapshot.captureId, captureKind = if (snapshot.larkam == null) "GENERIC" else "LARKAM",
+                        larkamDistanceKm = snapshot.larkam?.distanceKm,
+                        larkamDurationSeconds = snapshot.larkam?.durationSeconds,
+                        larkamRoute = snapshot.larkam?.route?.joinToString(";") { "${it.getValue("lat")},${it.getValue("lng")}" },
+                    )
+                    value.copy(id = queue.insert(value).toInt())
+                } catch (error: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                        // A cancelled Room await can follow a committed INSERT. Never
+                        // remove evidence unless we can positively rule out its row.
+                        savedPath?.let { path ->
+                            val definitelyUnqueued = runCatching { queue.pendingList().none { it.imagePath == path } }.getOrDefault(false)
+                            if (definitelyUnqueued) photoCache.deletePhoto(path) else syncScheduler.resumePresensiSync()
+                        }
+                    }
+                    throw error
+                }
+            }
+            // Schedule before network: process death while online still leaves a resumable row.
+            syncScheduler.resumePresensiSync()
+            if (!networkMonitor.isOnline()) return@captureResult PresensiSubmitResult.QueuedOffline
+            try {
+                PresensiSubmitResult.Uploaded(commitQueuedCapture(row, authRepository, queue, photoCache, storageRepository, captureWriter))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (changed: CaptureOwnerChanged) {
+                throw changed
+            } catch (error: Exception) {
+                markCaptureFailure(queue, row, error)
+                if (error.retryableCaptureFailure()) PresensiSubmitResult.QueuedOffline else throw error
+            }
+        } finally {
+            CaptureOutboxLock.mutex.unlock()
+        }
+    }
 
     override suspend fun submitPresensi(
         userId: String,

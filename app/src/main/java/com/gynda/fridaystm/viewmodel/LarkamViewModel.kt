@@ -19,6 +19,7 @@ import com.gynda.fridaystm.util.LocationProvider
 import com.gynda.fridaystm.util.TimeProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,14 +29,13 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDateTime
 
 /**
  * Drives the Larkam run tracker: polls the device fix via [LocationProvider]
  * backed by [com.google.android.gms.location.FusedLocationProviderClient] with
  * high-accuracy request (interval 3–5s, see [DEFAULT_POLL_MS]), sums distance
- * using [Location.distanceBetween] and ticks elapsed time from [TimeProvider];
+ * using [Location.distanceBetween] and a monotonic duration clock;
  * on stop, persists the run to Firestore through [LarkamRepository].
  *
  * Supports states IDLE → RUNNING → PAUSED ↔ RUNNING → FINISHED → SAVING/SAVED.
@@ -48,46 +48,71 @@ class LarkamViewModel(
     private val locationProvider: LocationProvider,
     private val larkamRepository: LarkamRepository,
     private val pollIntervalMs: Long = DEFAULT_POLL_MS,
+    private val elapsedTimeSource: com.gynda.fridaystm.util.ElapsedTimeSource = com.gynda.fridaystm.util.SystemElapsedTimeSource,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LarkamUiState())
     val uiState: StateFlow<LarkamUiState> = _uiState.asStateFlow()
 
-    private var lastUser: User? = null
+    private var runOwner: User? = null
+    private var observedUid: String? = authRepository.currentUid
+    private var authGeneration = 0L
     private var trackingJob: Job? = null
     private var startTime: LocalDateTime? = null
     private var lastPoint: RunPoint? = null
-    private var pauseStartTime: LocalDateTime? = null
-    private var totalPausedSeconds: Long = 0
+    private var startElapsedMillis: Long? = null
+    private var pauseElapsedMillis: Long? = null
+    private var totalPausedMillis: Long = 0
+    private var finishedIntent: com.gynda.fridaystm.util.LarkamCaptureIntent? = null
 
     init {
         viewModelScope.launch {
             authRepository.observeAuthState()
                 .distinctUntilChanged()
-                .flatMapLatest { uid ->
-                    if (uid == null) flowOf(null) else authRepository.observeUserProfile(uid)
+                .collect { uid ->
+                    if (uid != observedUid) {
+                        observedUid = uid
+                        authGeneration++
+                        invalidateRun()
+                    }
                 }
-                .collect { lastUser = it }
         }
     }
 
-    /** Begin tracking. No-op if already running. */
+    private var startingJob: Job? = null
+
+    /** Begin only for an authenticated attendee during Pembiasaan. */
     fun onStart() {
-        if (_uiState.value.status == RunStatus.Running) return
-        // Resume from pause: adjust startTime by paused duration
+        if (_uiState.value.status == RunStatus.Running || startingJob?.isActive == true) return
         if (_uiState.value.status == RunStatus.Paused) {
             onResume()
             return
         }
-        startTime = timeProvider.now()
-        totalPausedSeconds = 0
-        pauseStartTime = null
-        lastPoint = null
-        _uiState.value = LarkamUiState(status = RunStatus.Running)
-        trackingJob = viewModelScope.launch {
-            while (isActive) {
-                tick()
-                delay(pollIntervalMs)
+        val uid = authRepository.currentUid
+        val generation = authGeneration
+        startingJob = viewModelScope.launch {
+            val user = uid?.let { authRepository.getUserProfile(it).getOrNull() }
+            if (generation != authGeneration) return@launch
+            if (uid == null || authRepository.currentUid != uid || user?.uid != uid ||
+                user.role !in setOf("student", "class_rep") ||
+                com.gynda.fridaystm.domain.resolvePhase(timeProvider.now()) != com.gynda.fridaystm.domain.FridayPhase.PEMBIASAAN
+            ) {
+                _uiState.value = LarkamUiState(status = RunStatus.Error(R.string.submit_error_generic))
+                return@launch
+            }
+            finishedIntent = null
+            startTime = timeProvider.now()
+            runOwner = user
+            startElapsedMillis = elapsedTimeSource.elapsedMillis()
+            totalPausedMillis = 0
+            pauseElapsedMillis = null
+            lastPoint = null
+            _uiState.value = LarkamUiState(status = RunStatus.Running)
+            trackingJob = viewModelScope.launch {
+                while (isActive) {
+                    tick()
+                    delay(pollIntervalMs)
+                }
             }
         }
     }
@@ -97,18 +122,20 @@ class LarkamViewModel(
         if (_uiState.value.status != RunStatus.Running) return
         trackingJob?.cancel()
         trackingJob = null
-        pauseStartTime = timeProvider.now()
+        val elapsedNow = elapsedTimeSource.elapsedMillis()
+        _uiState.value = _uiState.value.copy(elapsedSec = elapsedAt(elapsedNow))
+        pauseElapsedMillis = elapsedNow
         _uiState.value = _uiState.value.copy(status = RunStatus.Paused)
     }
 
     /** Resume from pause. */
     fun onResume() {
         if (_uiState.value.status != RunStatus.Paused) return
-        pauseStartTime?.let { pausedSince ->
-            val pausedSec = Duration.between(pausedSince, timeProvider.now()).seconds
-            totalPausedSeconds += pausedSec.coerceAtLeast(0)
+        if (!validRunOwnerAndTime()) { invalidateRun(); return }
+        pauseElapsedMillis?.let { pausedSince ->
+            totalPausedMillis += (elapsedTimeSource.elapsedMillis() - pausedSince).coerceAtLeast(0)
         }
-        pauseStartTime = null
+        pauseElapsedMillis = null
         _uiState.value = _uiState.value.copy(status = RunStatus.Running)
         trackingJob = viewModelScope.launch {
             while (isActive) {
@@ -123,22 +150,23 @@ class LarkamViewModel(
         val snapshot = _uiState.value
         if (snapshot.status != RunStatus.Running && snapshot.status != RunStatus.Paused) return
         trackingJob?.cancel()
-        // If paused, account for remaining paused time
-        if (snapshot.status == RunStatus.Paused) {
-            pauseStartTime?.let { pausedSince ->
-                val pausedSec = Duration.between(pausedSince, timeProvider.now()).seconds
-                totalPausedSeconds += pausedSec.coerceAtLeast(0)
-            }
-            pauseStartTime = null
-        }
-        _uiState.value = snapshot.copy(status = RunStatus.Finished)
+        if (!validRunOwnerAndTime()) { invalidateRun(); return }
+        val finished = snapshot.copy(elapsedSec = elapsedAt(elapsedTimeSource.elapsedMillis()), status = RunStatus.Finished)
+        _uiState.value = finished
+        finishedIntent = com.gynda.fridaystm.util.LarkamCaptureIntent(
+            java.util.UUID.randomUUID().toString(), requireNotNull(runOwner).uid,
+            requireNotNull(startTime).toLocalDate(),
+            com.gynda.fridaystm.data.model.LarkamCapture(finished.distanceKm, finished.elapsedSec,
+                finished.path.map { mapOf("lat" to it.lat, "lng" to it.lng) }),
+        )
     }
 
     private suspend fun tick() {
-        val start = startTime ?: return
-        val rawElapsed = Duration.between(start, timeProvider.now()).seconds
-        val elapsed = (rawElapsed - totalPausedSeconds).coerceAtLeast(0)
+        if (startTime == null) return
+        val elapsed = elapsedAt(elapsedTimeSource.elapsedMillis())
         val fix = locationProvider.currentLocation().getOrNull()?.takeIf { !it.isMock }
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        if (_uiState.value.status != RunStatus.Running || !validRunOwnerAndTime()) return
         val cur = _uiState.value
         if (fix == null) {
             _uiState.value = cur.copy(elapsedSec = elapsed) // still advance the clock
@@ -172,53 +200,68 @@ class LarkamViewModel(
     fun onStop() {
         val snapshot = _uiState.value
         if (snapshot.status != RunStatus.Running && snapshot.status != RunStatus.Paused && snapshot.status != RunStatus.Finished) return
-        trackingJob?.cancel()
-        // If still paused, flush paused duration
-        if (snapshot.status == RunStatus.Paused) {
-            pauseStartTime?.let { pausedSince ->
-                val pausedSec = Duration.between(pausedSince, timeProvider.now()).seconds
-                totalPausedSeconds += pausedSec.coerceAtLeast(0)
-            }
-            pauseStartTime = null
+        val owner = runOwner
+        if (owner == null || owner.uid != authRepository.currentUid) {
+            invalidateRun()
+            return
         }
-        // Recompute final elapsed accounting for pauses
-        val start = startTime
-        val finalElapsed = if (start != null) {
-            (Duration.between(start, timeProvider.now()).seconds - totalPausedSeconds).coerceAtLeast(0)
-        } else snapshot.elapsedSec
+        trackingJob?.cancel()
+        val finalElapsed = if (snapshot.status == RunStatus.Finished) snapshot.elapsedSec
+            else elapsedAt(elapsedTimeSource.elapsedMillis())
         val finalSnapshot = snapshot.copy(elapsedSec = finalElapsed, status = RunStatus.Saving)
         _uiState.value = finalSnapshot
         viewModelScope.launch {
-            val user = lastUser
-            if (user == null) {
-                _uiState.value = finalSnapshot.copy(status = RunStatus.Error(R.string.submit_error_generic))
+            if (runOwner != owner || authRepository.currentUid != owner.uid) {
+                invalidateRun()
                 return@launch
             }
             val run = LarkamRun(
-                userId = user.uid,
+                userId = owner.uid,
                 distanceMeters = finalSnapshot.distanceMeters,
                 elapsedSec = finalSnapshot.elapsedSec,
                 path = finalSnapshot.path.map { mapOf("lat" to it.lat, "lng" to it.lng) },
             )
-            _uiState.value = larkamRepository.logRun(run).fold(
+            val result = larkamRepository.logRun(run)
+            if (runOwner != owner || authRepository.currentUid != owner.uid) {
+                invalidateRun()
+                return@launch
+            }
+            _uiState.value = result.fold(
                 onSuccess = { finalSnapshot.copy(status = RunStatus.Saved) },
                 onFailure = { finalSnapshot.copy(status = RunStatus.Error(R.string.submit_error_generic)) },
             )
         }
     }
 
-    /** Save to larkam_records with watermarked image (used after selfie). */
-    fun saveLarkamRecord(
-        imageUrl: String,
-        onDone: (Boolean) -> Unit = {}
-    ) {
-        val snapshot = _uiState.value
-        viewModelScope.launch {
-            val user = lastUser ?: run { onDone(false); return@launch }
-            // For larkam_records we reuse larkamRepository but could be separate; using Firestore directly for now is handled via Presensi flow
-            // This is a placeholder for the selfie finish flow; actual save is done via PresensiCameraViewModel with payload
-            onDone(true)
-        }
+    /** Immutable finished run; never a persistence acknowledgement. */
+    fun captureIntent(): com.gynda.fridaystm.util.LarkamCaptureIntent? =
+        finishedIntent?.takeIf { _uiState.value.status == RunStatus.Finished && validRunOwnerAndTime() }
+
+    private fun validRunOwnerAndTime(): Boolean {
+        val start = startTime ?: return false
+        val now = timeProvider.now()
+        return runOwner?.uid == authRepository.currentUid && now.toLocalDate() == start.toLocalDate() &&
+            com.gynda.fridaystm.domain.resolvePhase(now) in setOf(
+                com.gynda.fridaystm.domain.FridayPhase.PEMBIASAAN, com.gynda.fridaystm.domain.FridayPhase.CHECKOUT)
+    }
+
+    private fun elapsedAt(nowMillis: Long): Long = startElapsedMillis?.let { started ->
+        ((pauseElapsedMillis ?: nowMillis) - started - totalPausedMillis).coerceAtLeast(0) / 1_000L
+    } ?: 0
+
+    fun onCancelCapture() { invalidateRun() }
+
+    private fun invalidateRun() {
+        startingJob?.cancel()
+        trackingJob?.cancel()
+        finishedIntent = null
+        runOwner = null
+        startTime = null
+        lastPoint = null
+        startElapsedMillis = null
+        pauseElapsedMillis = null
+        totalPausedMillis = 0
+        _uiState.value = LarkamUiState(status = RunStatus.Error(R.string.submit_error_generic))
     }
 
     companion object {
@@ -231,9 +274,10 @@ class LarkamViewModel(
             timeProvider: TimeProvider = com.gynda.fridaystm.util.SystemTimeProvider(),
             authRepository: AuthRepository = FirebaseAuthRepository(),
             larkamRepository: LarkamRepository = DefaultLarkamRepository(),
+            elapsedTimeSource: com.gynda.fridaystm.util.ElapsedTimeSource = com.gynda.fridaystm.util.SystemElapsedTimeSource,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                LarkamViewModel(timeProvider, authRepository, locationProvider, larkamRepository)
+                LarkamViewModel(timeProvider, authRepository, locationProvider, larkamRepository, elapsedTimeSource = elapsedTimeSource)
             }
         }
     }

@@ -58,6 +58,7 @@ class LarkamViewModelTest {
         locationProvider = location,
         larkamRepository = repo,
         pollIntervalMs = pollMs,
+        elapsedTimeSource = com.gynda.fridaystm.util.ElapsedTimeSource { java.time.Duration.between(start, time.now()).toMillis() },
     )
 
     @Test fun `polling accumulates distance and drops mock fixes`() = runTest(dispatcher) {

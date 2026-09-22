@@ -60,6 +60,11 @@ class PresensiRepositoryTest {
             if (index >= 0) rows[index] = rows[index].copy(statusSync = status)
         }
 
+        override suspend fun checkpointUpload(id: Int, imageUrl: String) {
+            val index = rows.indexOfFirst { it.id == id }
+            rows[index] = rows[index].copy(uploadedImageUrl = imageUrl)
+        }
+
         override fun observePendingCount(userId: String): Flow<Int> =
             MutableStateFlow(rows.count { it.userId == userId })
 
@@ -175,6 +180,39 @@ class PresensiRepositoryTest {
             studentName = "Budi",
             studentClass = "XI RPL 1",
         )
+    }
+
+    @Test
+    fun typedCapture_onlineCommitFailure_retainsDurableEvidence() = runTest {
+        val f = Fixture(presensi = FakePresensiRepository(shouldFail = true))
+        val draft = com.gynda.fridaystm.data.model.CaptureDraft(
+            "b0802f1b-c6da-4ca9-86c9-82f833b92222", "user123", fixedTime,
+            -6.8868, 107.5381, "Budi", "XI RPL 1",
+        )
+        f.repo.submitCapture(draft, fakeBytes)
+        assertEquals("A failed online commit must retain the capture", 1, f.queue.size)
+        assertEquals(1, f.photos.files.size)
+    }
+
+    @Test
+    fun typedCapture_freezesLarkamAndCheckpointsUploadBeforeCommit() = runTest {
+        val f = Fixture(presensi = FakePresensiRepository(shouldFail = true))
+        val point = mutableMapOf("lat" to -6.88, "lng" to 107.53)
+        val route = mutableListOf<Map<String, Double>>(point)
+        val draft = com.gynda.fridaystm.data.model.CaptureDraft(
+            "b0802f1b-c6da-4ca9-86c9-82f833b92222", "user123", fixedTime,
+            -6.8868, 107.5381, "Budi", "XI RPL 1",
+            com.gynda.fridaystm.data.model.LarkamCapture(2.75, 901, route),
+        )
+        f.storage.duringUpload = { point["lat"] = 0.0; route.clear() }
+        f.repo.submitCapture(draft, fakeBytes)
+        val row = f.queue.pendingList().single()
+        assertEquals("LARKAM", row.captureKind)
+        assertEquals(draft.captureId, row.captureId)
+        assertEquals(2.75, row.larkamDistanceKm)
+        assertEquals(901L, row.larkamDurationSeconds)
+        assertEquals("-6.88,107.53", row.larkamRoute)
+        assertEquals("https://storage.example.com/capture_${draft.captureId}", row.uploadedImageUrl)
     }
 
     @Test

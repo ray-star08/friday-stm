@@ -13,7 +13,6 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -121,7 +120,7 @@ class CloudinaryStorageRepository(
         bytes: ByteArray,
         storageFileName: String,
     ): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
+        cloudinaryResult {
             require(userId.isNotBlank()) { "userId must not be blank" }
             require(bytes.isNotEmpty()) { "photo bytes must not be empty" }
             require(storageFileName.isNotBlank()) { "storageFileName must not be blank" }
@@ -146,15 +145,7 @@ class CloudinaryStorageRepository(
                 .post(body)
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                val payload = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    error("Cloudinary presensi upload failed (${response.code}): $payload")
-                }
-                JSONObject(payload).optString("secure_url").ifBlank {
-                    error("Cloudinary response missing secure_url: $payload")
-                }
-            }
+            uploadCloudinary(client, request, cloudName)
         }
     }
 }

@@ -10,7 +10,6 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
 /**
@@ -54,7 +53,7 @@ class CloudinaryUploader(
         phase: String,
         bitmap: Bitmap,
     ): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
+        cloudinaryResult {
             require(cloudName.isNotBlank() && uploadPreset.isNotBlank()) {
                 "Cloudinary not configured: set cloudinary.cloudName / cloudinary.uploadPreset in local.properties"
             }
@@ -68,7 +67,7 @@ class CloudinaryUploader(
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("upload_preset", uploadPreset)
                 .addFormDataPart("folder", CloudinaryConfig.folder(uid))
-                .addFormDataPart("public_id", CloudinaryConfig.publicId(date, phase))
+                .addFormDataPart("public_id", "${CloudinaryConfig.publicId(date, phase)}_${java.util.UUID.randomUUID()}")
                 .addFormDataPart(
                     "file",
                     "$phase.jpg",
@@ -81,15 +80,7 @@ class CloudinaryUploader(
                 .post(body)
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                val payload = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    error("Cloudinary upload failed (${response.code}): $payload")
-                }
-                JSONObject(payload).optString("secure_url").ifBlank {
-                    error("Cloudinary response missing secure_url")
-                }
-            }
+            uploadCloudinary(client, request, cloudName)
         }
     }
 

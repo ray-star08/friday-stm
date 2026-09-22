@@ -2,11 +2,18 @@ package com.gynda.fridaystm.viewmodel
 
 import com.gynda.fridaystm.data.local.PendingPresensiEntity
 import com.gynda.fridaystm.data.local.PendingPresensiStore
+import com.gynda.fridaystm.data.local.PendingSyncStatus
 import com.gynda.fridaystm.util.PresensiSyncScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -104,6 +111,30 @@ class OfflineQueueViewModelTest {
         assertEquals(0, scheduler.resumed)
     }
 
+    @Test
+    fun terminalOnlyQueueDoesNotPromiseAutomaticResumption() = runTest(dispatcher) {
+        val scheduler = RecordingScheduler()
+        OfflineQueueViewModel(
+            FakeAuthRepository(initialUid = "a"),
+            Queue(status = PendingSyncStatus.NEEDS_ATTENTION),
+            scheduler,
+        )
+        runCurrent()
+
+        assertEquals("Terminal evidence cannot be retried automatically", 0, scheduler.resumed)
+    }
+
+    @Test fun terminalCountIsOwnerScopedAndClearedOnLogout() = runTest(dispatcher) {
+        val auth = FakeAuthRepository(initialUid = "a")
+        val vm = OfflineQueueViewModel(auth, Queue(PendingSyncStatus.NEEDS_ATTENTION), RecordingScheduler())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.needsAttentionCount.collect() }
+        runCurrent()
+        assertEquals(1, vm.needsAttentionCount.value)
+        auth.signOut()
+        runCurrent()
+        assertEquals(0, vm.needsAttentionCount.value)
+    }
+
     private class RecordingScheduler : PresensiSyncScheduler {
         var scheduled = 0
         var resumed = 0
@@ -111,10 +142,51 @@ class OfflineQueueViewModelTest {
         override fun resumePresensiSync() { resumed++ }
     }
 
-    private class Queue : PendingPresensiStore {
+    @Test
+    fun switchingOwnerClearsPreviousCountBeforeNewOwnerQueryReturns() = runTest(dispatcher) {
+        val auth = FakeAuthRepository(initialUid = "a")
+        val releaseNewOwner = CompletableDeferred<Unit>()
+        val queue = object : Queue() {
+            override fun observePendingCount(userId: String): Flow<Int> =
+                if (userId == "b") flow { releaseNewOwner.await(); emit(0) }
+                else super.observePendingCount(userId)
+        }
+        val viewModel = OfflineQueueViewModel(auth, queue, RecordingScheduler())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.pendingCount.collect() }
+        runCurrent()
+        assertEquals(1, viewModel.pendingCount.value)
+
+        auth.emitAuthState("b")
+        runCurrent()
+
+        assertEquals("Old owner's queued evidence must not be shown while the next query loads", 0, viewModel.pendingCount.value)
+        releaseNewOwner.complete(Unit)
+        runCurrent()
+    }
+
+    private open class Queue(private val status: String = PendingSyncStatus.PENDING) : PendingPresensiStore {
         val counts = mapOf("a" to MutableStateFlow(1), "b" to MutableStateFlow(0))
         override fun observePendingCount(userId: String): Flow<Int> = counts.getValue(userId)
-        override suspend fun pendingList(): List<PendingPresensiEntity> = emptyList()
+        override fun observeNeedsAttentionCount(userId: String): Flow<Int> = counts.getValue(userId).map {
+            if (status == PendingSyncStatus.NEEDS_ATTENTION) it else 0
+        }
+        override suspend fun pendingList(): List<PendingPresensiEntity> = counts.flatMap { (uid, count) ->
+            List(count.value) { index ->
+                PendingPresensiEntity(
+                    id = index + 1,
+                    userId = uid,
+                    timestampIso = "2026-09-18T07:00:00",
+                    latitude = null,
+                    longitude = null,
+                    imagePath = "/synthetic/photo-$uid-$index.jpg",
+                    storageFileName = "synthetic-$uid-$index.jpg",
+                    studentName = "Fixture $uid",
+                    studentClass = "XI Fixture",
+                    statusSync = status,
+                    createdAt = index.toLong(),
+                )
+            }
+        }
         override suspend fun insert(entity: PendingPresensiEntity): Long = 0
         override suspend fun deleteById(id: Int) = Unit
         override suspend fun updateStatus(id: Int, status: String) = Unit

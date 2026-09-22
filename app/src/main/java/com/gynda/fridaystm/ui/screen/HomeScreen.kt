@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -136,6 +137,7 @@ fun HomeScreen(
     val talimState by talimViewModel.uiState.collectAsStateWithLifecycle()
     val talimSubmitStatus by talimViewModel.submitStatus.collectAsStateWithLifecycle()
     val pendingCount by offlineQueueViewModel.pendingCount.collectAsStateWithLifecycle()
+    val needsAttentionCount by offlineQueueViewModel.needsAttentionCount.collectAsStateWithLifecycle()
 
     // Route to Login exactly once when the session resolves to signed-out.
     val signedOut = uiState is HomeUiState.SignedOut
@@ -218,6 +220,7 @@ fun HomeScreen(
             onOpenPresensiHistory = onOpenPresensiHistory,
             onOpenPengajuanIzin = onOpenPengajuanIzin,
             pendingCount = pendingCount,
+            needsAttentionCount = needsAttentionCount,
             onSyncNow = offlineQueueViewModel::syncNow,
             modifier = Modifier.fillMaxSize(),
         )
@@ -271,6 +274,7 @@ fun HomeContent(
     onOpenPresensiHistory: () -> Unit = {},
     onOpenPengajuanIzin: () -> Unit = {},
     pendingCount: Int = 0,
+    needsAttentionCount: Int = 0,
     onSyncNow: () -> Unit = {},
 ) {
     // Smooth fade between Loading / Ready / Error rather than a hard swap (M5.3).
@@ -302,6 +306,7 @@ fun HomeContent(
                 onOpenPresensiHistory = onOpenPresensiHistory,
                 onOpenPengajuanIzin = onOpenPengajuanIzin,
                 pendingCount = pendingCount,
+                needsAttentionCount = needsAttentionCount,
                 onSyncNow = onSyncNow,
             )
         }
@@ -329,6 +334,7 @@ private fun ReadyContent(
     onOpenPresensiHistory: () -> Unit = {},
     onOpenPengajuanIzin: () -> Unit = {},
     pendingCount: Int = 0,
+    needsAttentionCount: Int = 0,
     onSyncNow: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -360,6 +366,7 @@ private fun ReadyContent(
         if (pendingCount > 0) {
             OfflineQueueBanner(
                 count = pendingCount,
+                needsAttentionCount = needsAttentionCount,
                 onSyncNow = onSyncNow,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -702,9 +709,10 @@ private fun currentPhaseSelfie(state: HomeUiState.Ready): PhaseSelfie? = when (s
  * comes from [OfflineQueueViewModel.pendingCount] (SKILL.md §3.3).
  */
 @Composable
-private fun OfflineQueueBanner(
+fun OfflineQueueBanner(
     count: Int,
     onSyncNow: () -> Unit,
+    needsAttentionCount: Int,
     modifier: Modifier = Modifier,
 ) {
     val description = stringResource(R.string.offline_queue_cd)
@@ -712,7 +720,7 @@ private fun OfflineQueueBanner(
         color = MaterialTheme.colorScheme.tertiaryContainer,
         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         shape = RoundedCornerShape(16.dp),
-        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+        modifier = modifier.semantics { contentDescription = description },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -725,11 +733,13 @@ private fun OfflineQueueBanner(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = stringResource(R.string.offline_queue_banner, count),
+                text = if (needsAttentionCount > 0) {
+                    "$count foto belum tersinkron; $needsAttentionCount perlu ditangani. Hubungi admin atau ambil ulang foto."
+                } else stringResource(R.string.offline_queue_banner, count),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onSyncNow) {
+            TextButton(onClick = onSyncNow, enabled = count > needsAttentionCount) {
                 Text(stringResource(R.string.offline_queue_sync))
             }
         }
