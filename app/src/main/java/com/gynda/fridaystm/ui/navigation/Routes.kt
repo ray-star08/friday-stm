@@ -28,6 +28,10 @@ sealed interface Routes {
 
     /** Larkam run tracker — live map + duration/distance, logs to Firestore (Activity 4). */
     data object Larkam : Routes { override val route = "larkam" }
+    data object LarkamCamera : Routes {
+        override val route = "larkam_camera/{captureId}"
+        fun forCapture(id: String) = "larkam_camera/$id"
+    }
 
     /** Presensi selfie with watermark + Storage upload (watermarked presensi). */
     data object PresensiCamera : Routes { override val route = "presensi_camera" }

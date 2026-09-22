@@ -1,5 +1,6 @@
 package com.gynda.fridaystm.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -13,6 +14,7 @@ import androidx.room.PrimaryKey
 object PendingSyncStatus {
     const val PENDING = "PENDING"
     const val FAILED = "FAILED"
+    const val NEEDS_ATTENTION = "NEEDS_ATTENTION"
 }
 
 /**
@@ -47,4 +49,11 @@ data class PendingPresensiEntity(
     val studentClass: String,
     val statusSync: String = PendingSyncStatus.PENDING,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val captureId: String = "",
+    @ColumnInfo(defaultValue = "'GENERIC'") val captureKind: String = "GENERIC",
+    val larkamDistanceKm: Double? = null,
+    val larkamDurationSeconds: Long? = null,
+    val larkamRoute: String? = null,
+    val uploadedImageUrl: String? = null,
+    val lastError: String? = null,
 )

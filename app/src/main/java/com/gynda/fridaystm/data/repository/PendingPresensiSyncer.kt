@@ -35,6 +35,7 @@ class PendingPresensiSyncer(
     private val photoCache: PendingPhotoCache,
     private val storageRepository: StorageRepository,
     private val presensiRepository: PresensiRepository,
+    private val captureWriter: CaptureWriter? = null,
 ) {
 
     suspend fun syncPending(): PresensiSyncSummary {
@@ -44,7 +45,28 @@ class PendingPresensiSyncer(
         for (entity in queue.pendingList()) {
             if (authRepository.currentUid != ownerUid) break
             if (entity.userId != ownerUid) continue
+            if (captureWriter != null) {
+                if (entity.statusSync == PendingSyncStatus.NEEDS_ATTENTION) continue
+                CaptureOutboxLock.mutex.lock()
+                try {
+                    val fresh = queue.pendingList().firstOrNull { it.id == entity.id } ?: continue
+                    if (fresh.statusSync == PendingSyncStatus.NEEDS_ATTENTION) continue
+                    commitQueuedCapture(fresh, authRepository, queue, photoCache, storageRepository, captureWriter)
+                    synced++
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: CaptureOwnerChanged) {
+                    break
+                } catch (error: Exception) {
+                    markCaptureFailure(queue, entity, error)
+                    if (error.retryableCaptureFailure()) failed++
+                } finally {
+                    CaptureOutboxLock.mutex.unlock()
+                }
+                continue
+            }
             try {
+                check(entity.captureKind == "GENERIC") { "Typed capture writer required for Larkam" }
                 val bytes = photoCache.readPhoto(entity.imagePath)
                     ?: throw IllegalStateException("Cached photo missing: ${entity.imagePath}")
                 val timestamp = try {

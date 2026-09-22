@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 /**
- * Local database for the offline presensi queue (v1 — single table).
+ * Local database for the durable capture outbox (v2 — single table).
  *
  * **Manual provider, not Hilt/Koin:** this codebase wires dependencies by
  * hand through `ViewModel.factory(...)` call sites (see `AppNavHost`), so a
@@ -15,10 +15,9 @@ import androidx.room.RoomDatabase
  * later adopts Hilt/Koin, replace [get] with the framework's singleton
  * binding — the DAO/repository seams stay unchanged.
  *
- * **Migrations:** v1 is the initial schema, so no `Migration` object is
- * needed yet. When v2 adds/renames a column, add the `Migration(1, 2)` here
- * and bump [version] — never fall back to `fallbackToDestructiveMigration()`
- * in production, or queued (unsynced) presensi rows would be wiped.
+ * Version 2 adds typed metadata and upload checkpoints without dropping any v1 row.
+ * Legacy rows keep their capture timestamp/file and are generic evidence; missing
+ * Larkam metadata cannot be reconstructed. Never use destructive migration.
  */
 @Database(
     entities = [PendingPresensiEntity::class],
@@ -30,7 +29,18 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingPresensiDao(): PendingPresensiDao
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN captureId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN captureKind TEXT NOT NULL DEFAULT 'GENERIC'")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN larkamDistanceKm REAL")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN larkamDurationSeconds INTEGER")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN larkamRoute TEXT")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN uploadedImageUrl TEXT")
+                db.execSQL("ALTER TABLE pending_presensi ADD COLUMN lastError TEXT")
+            }
+        }
         private const val NAME = "friday_stm.db"
 
         @Volatile
@@ -46,7 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     NAME,
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
     }
 }

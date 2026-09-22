@@ -30,6 +30,7 @@ object FirestoreCollections {
 
     /** Larkam run logs, appended per session (Firestore-only, no external sync). */
     const val LARKAM_RUNS = "larkam_runs"
+    const val LARKAM_RECORDS = "larkam_records"
 
     /** Presensi selfie records with watermarked photo URL. */
     const val PRESENSI_RECORDS = "presensi_records"

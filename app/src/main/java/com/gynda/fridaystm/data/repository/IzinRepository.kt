@@ -20,7 +20,6 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.time.ZoneId
 
 /**
@@ -73,7 +72,7 @@ class CloudinaryIzinProofUploader(
 
     override suspend fun uploadProof(userId: String, bytes: ByteArray): Result<String> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            cloudinaryResult {
                 require(userId.isNotBlank()) { "userId must not be blank" }
                 require(bytes.isNotEmpty()) { "proof bytes must not be empty" }
                 require(cloudName.isNotBlank() && uploadPreset.isNotBlank()) {
@@ -83,7 +82,7 @@ class CloudinaryIzinProofUploader(
                     .atZone(ZoneId.systemDefault())
                     .toInstant()
                     .toEpochMilli()
-                val publicId = "${userId}_${epochMillis}"
+                val publicId = "${userId}_${epochMillis}_${java.util.UUID.randomUUID()}"
                 val body = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
                     .addFormDataPart("upload_preset", uploadPreset)
@@ -95,15 +94,7 @@ class CloudinaryIzinProofUploader(
                     .url(CloudinaryConfig.uploadUrl(cloudName))
                     .post(body)
                     .build()
-                client.newCall(request).execute().use { response ->
-                    val payload = response.body?.string().orEmpty()
-                    if (!response.isSuccessful) {
-                        error("Cloudinary permits upload failed (${response.code}): $payload")
-                    }
-                    JSONObject(payload).optString("secure_url").ifBlank {
-                        error("Cloudinary response missing secure_url: $payload")
-                    }
-                }
+                uploadCloudinary(client, request, cloudName)
             }
         }
 }

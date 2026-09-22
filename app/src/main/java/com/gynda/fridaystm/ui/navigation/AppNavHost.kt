@@ -156,6 +156,7 @@ fun AppNavHost(
 
         composable(Routes.PresensiCamera.route) {
             PresensiCameraScreen(
+                timeProvider = timeProvider,
                 onSuccessNavigateBack = { navController.popBackStack() }
             )
         }
@@ -203,21 +204,39 @@ fun AppNavHost(
 
         composable(Routes.Larkam.route) {
             val larkamViewModel: com.gynda.fridaystm.viewmodel.LarkamViewModel = viewModel(
-                factory = remember(locationProvider) { com.gynda.fridaystm.viewmodel.LarkamViewModel.factory(locationProvider) },
+                factory = remember(locationProvider, timeProvider) { LarkamViewModel.factory(locationProvider, timeProvider) },
             )
             LarkamTrackingScreen(
                 viewModel = larkamViewModel,
                 onDone = { navController.popBackStack(Routes.Home.route, inclusive = false) },
                 onFinishSelfie = {
-                    val state = larkamViewModel.uiState.value
-                    com.gynda.fridaystm.util.LarkamPayloadHolder.set(
-                        distanceKm = (state.distanceMeters / 1000.0).toFloat(),
-                        durationSeconds = state.elapsedSec,
-                        durationFormatted = state.timerFormatted,
-                        route = state.path.map { mapOf("lat" to it.lat, "lng" to it.lng) }
-                    )
-                    navController.navigate(Routes.PresensiCamera.route)
+                    larkamViewModel.captureIntent()?.let { intent ->
+                        navController.navigate(Routes.LarkamCamera.forCapture(intent.captureId)) { launchSingleTop = true }
+                    }
                 }
+            )
+        }
+
+        composable(Routes.LarkamCamera.route) { entry ->
+            val trackerEntry = remember(entry) {
+                runCatching { navController.getBackStackEntry(Routes.Larkam.route) }.getOrNull()
+            }
+            val tracker = trackerEntry?.let { owner ->
+                viewModel<LarkamViewModel>(owner, factory = LarkamViewModel.factory(locationProvider, timeProvider))
+            }
+            val intent = remember(entry) { tracker?.captureIntent()?.takeIf { it.captureId == entry.arguments?.getString("captureId") } }
+            androidx.activity.compose.BackHandler {
+                tracker?.onCancelCapture()
+                navController.popBackStack()
+            }
+            PresensiCameraScreen(
+                requiresLarkamIntent = true,
+                larkamIntent = intent,
+                timeProvider = timeProvider,
+                onSuccessNavigateBack = {
+                    tracker?.onCancelCapture()
+                    navController.popBackStack(Routes.Home.route, inclusive = false)
+                },
             )
         }
 

@@ -67,9 +67,6 @@ fun LarkamTrackingScreen(
         if (state.status == RunStatus.Saved) {
             Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
         }
-        if (state.status == RunStatus.Finished && onFinishSelfie != null) {
-            onFinishSelfie()
-        }
     }
     LarkamContent(
         state = state,
@@ -77,7 +74,11 @@ fun LarkamTrackingScreen(
         onPause = viewModel::onPause,
         onResume = viewModel::onResume,
         onStop = viewModel::onStop,
-        onFinish = viewModel::onFinish,
+        onFinish = {
+            viewModel.onFinish()
+            if (viewModel.captureIntent() != null) onFinishSelfie?.invoke()
+        },
+        onFinishSelfie = onFinishSelfie,
         onDone = onDone,
         modifier = modifier,
     )
