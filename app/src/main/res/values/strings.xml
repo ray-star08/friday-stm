@@ -209,11 +209,11 @@
     <string name="izin_open">Pengajuan Izin</string>
 
     <!-- Offline presensi queue (Room + WorkManager auto-sync) -->
-    <string name="offline_queue_banner">%1$d Presensi Menunggu Sinyal</string>
+    <string name="offline_queue_banner">Foto menunggu sinkronisasi: %1$d</string>
     <string name="offline_queue_sync">Sinkronkan</string>
     <string name="offline_queue_cd">Antrean presensi offline</string>
     <string name="presensi_queued_title">Tersimpan Offline</string>
-    <string name="presensi_queued_body">Tidak ada sinyal. Presensi tersimpan di perangkat dan akan terkirim otomatis saat online.</string>
+    <string name="presensi_queued_body">Foto tersimpan di perangkat, tetapi belum tercatat di server. Sinkronisasi akan dicoba saat online dengan akun yang sama. Periksa status antrean di beranda.</string>
 
     <!-- FCM presensi reminders -->
     <string name="fcm_channel_name">Pengingat Presensi</string>

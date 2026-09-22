@@ -8,8 +8,8 @@
     <string name="redesign_school">SMK Negeri 1 Cimahi</string>
     <string name="redesign_home_eyebrow">JUMAT, LEBIH TERATUR</string>
     <string name="redesign_tools">Menu siswa</string>
-    <string name="redesign_selfie">Presensi selfie</string>
-    <string name="redesign_selfie_body">Buka kamera presensi</string>
+    <string name="redesign_selfie">Foto kegiatan tambahan</string>
+    <string name="redesign_selfie_body">Bukti tambahan, bukan pengganti check-in atau check-out</string>
     <string name="redesign_history">Riwayat presensi</string>
     <string name="redesign_history_body">Lihat foto dan waktu tercatat</string>
     <string name="redesign_izin_body">Ajukan izin atau sakit</string>
