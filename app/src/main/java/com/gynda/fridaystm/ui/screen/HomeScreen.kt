@@ -7,6 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import com.gynda.fridaystm.ui.component.ActionMenuRow
+import com.gynda.fridaystm.ui.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -335,15 +338,23 @@ private fun ReadyContent(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(Spacing.s20),
     ) {
         Text(
+            stringResource(R.string.redesign_home_eyebrow),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(Spacing.s8))
+        Text(
             text = stringResource(R.string.home_greeting, name),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Spacer(Modifier.height(20.dp))
+        Text(state.user.kelas, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Spacing.s24))
 
         // Offline queue banner: visible only while captures await signal.
         if (pendingCount > 0) {
@@ -487,52 +498,29 @@ private fun ReadyContent(
             )
         }
 
-        // Presensi Camera entry point (Dashboard) — navigates to Screen.PresensiCamera
-        Spacer(Modifier.height(16.dp))
-        Button(
+        Spacer(Modifier.height(Spacing.s24))
+        Text(stringResource(R.string.redesign_tools), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(Spacing.s12))
+        ActionMenuRow(
+            title = stringResource(R.string.redesign_selfie),
+            subtitle = stringResource(R.string.redesign_selfie_body),
+            icon = Icons.Filled.Face,
             onClick = onNavigateToPresensiCamera,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Filled.Face, contentDescription = null)
-            Text(
-                text = "Presensi Selfie",
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-        // Alias "Absen Sekarang" covered via same action for spec compatibility
-        Spacer(Modifier.height(4.dp))
-        TextButton(
-            onClick = onNavigateToPresensiCamera,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Absen Sekarang")
-        }
-
-        // Riwayat Presensi entry point (Dashboard)
-        Spacer(Modifier.height(16.dp))
-        Button(
+        )
+        Spacer(Modifier.height(Spacing.s8))
+        ActionMenuRow(
+            title = stringResource(R.string.redesign_history),
+            subtitle = stringResource(R.string.redesign_history_body),
+            icon = Icons.Filled.DateRange,
             onClick = onOpenPresensiHistory,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Filled.DateRange, contentDescription = null)
-            Text(
-                text = "Riwayat Presensi",
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-
-        // Pengajuan Izin / Sakit entry point (Dashboard) — form + bukti surat.
-        Spacer(Modifier.height(8.dp))
-        Button(
+        )
+        Spacer(Modifier.height(Spacing.s8))
+        ActionMenuRow(
+            title = stringResource(R.string.izin_open),
+            subtitle = stringResource(R.string.redesign_izin_body),
+            icon = Icons.Filled.Edit,
             onClick = onOpenPengajuanIzin,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Filled.Edit, contentDescription = null)
-            Text(
-                text = stringResource(R.string.izin_open),
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
+        )
 
         // Larkam run tracker (Activity 4): only during Pembiasaan when the class is
         // rotated to Larkam and the role attends. Selfie check-in stays the attendance

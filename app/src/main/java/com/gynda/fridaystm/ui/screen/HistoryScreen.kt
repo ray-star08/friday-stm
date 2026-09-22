@@ -1,6 +1,9 @@
 package com.gynda.fridaystm.ui.screen
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import com.gynda.fridaystm.ui.theme.ComponentSize
+import com.gynda.fridaystm.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,16 +82,24 @@ fun HistoryContent(
     modifier: Modifier = Modifier,
 ) {
     var selected by remember { mutableStateOf<AttendanceRecord?>(null) }
-    when (state) {
-        HistoryUiState.Loading -> CenteredSpinner(modifier)
-        HistoryUiState.Empty -> CenteredMessage(stringResource(R.string.history_empty), modifier)
-        is HistoryUiState.Error -> CenteredMessage(stringResource(state.messageResId), modifier)
-        is HistoryUiState.Success -> LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(state.records, key = { it.docId }) { record ->
+    LazyColumn(
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(Spacing.s20),
+        verticalArrangement = Arrangement.spacedBy(Spacing.s12),
+    ) {
+        item {
+            Column {
+                Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(Spacing.s8))
+                Text(stringResource(R.string.redesign_history_heading), style = MaterialTheme.typography.headlineMedium)
+                Text(stringResource(R.string.redesign_history_intro), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        when (state) {
+            HistoryUiState.Loading -> item { CenteredSpinner() }
+            HistoryUiState.Empty -> item { CenteredMessage(stringResource(R.string.history_empty)) }
+            is HistoryUiState.Error -> item { CenteredMessage(stringResource(state.messageResId)) }
+            is HistoryUiState.Success -> items(state.records, key = { it.docId }) { record ->
                 AttendanceHistoryCard(record, onClick = { selected = record })
             }
         }
@@ -112,7 +123,9 @@ private fun AttendanceHistoryCard(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(ComponentSize.border, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(

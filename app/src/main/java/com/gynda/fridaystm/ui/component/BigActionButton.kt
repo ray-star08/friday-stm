@@ -2,7 +2,7 @@ package com.gynda.fridaystm.ui.component
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -44,7 +44,7 @@ fun BigActionButton(
     Button(
         onClick = { if (!loading) onClick() },
         enabled = enabled && !loading,
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.medium,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -55,7 +55,7 @@ fun BigActionButton(
         ),
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp),
+            .heightIn(min = com.gynda.fridaystm.ui.theme.ComponentSize.button),
     ) {
         if (loading) {
             CircularProgressIndicator(

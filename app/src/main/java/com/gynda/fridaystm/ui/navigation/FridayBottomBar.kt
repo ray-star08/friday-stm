@@ -18,7 +18,11 @@ fun FridayBottomBar(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    NavigationBar(modifier = modifier) {
+    NavigationBar(
+        modifier = modifier,
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        tonalElevation = com.gynda.fridaystm.ui.theme.Elevation.none,
+    ) {
         TopLevelDestination.entries.forEach { destination ->
             NavigationBarItem(
                 selected = currentRoute == destination.route,
