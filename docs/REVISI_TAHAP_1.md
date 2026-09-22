@@ -31,7 +31,7 @@ Verifikasi lokal gabungan: **167 unit test, 0 gagal/0 skip; lint 0 error dan 74 
 
 ## Menjalankan verifikasi
 
-Prasyarat: Java 21, Node 22, Android SDK platform 37 dan build-tools 36.0.0. Pakai Gradle wrapper yang sudah dipin dan `sh gradlew` (tidak perlu mengubah executable bit).
+Prasyarat: Java 21, Node 22, Android SDK platform 37 (package `platforms;android-37.0`) dan build-tools 36.0.0. CI memakai SDK command-line tools 23.0 agar format API minor dikenali. Pakai Gradle wrapper yang sudah dipin dan `sh gradlew` (tidak perlu mengubah executable bit).
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
