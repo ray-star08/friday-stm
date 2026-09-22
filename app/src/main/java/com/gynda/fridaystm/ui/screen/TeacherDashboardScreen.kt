@@ -1,6 +1,5 @@
 package com.gynda.fridaystm.ui.screen
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -65,7 +64,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -201,111 +199,84 @@ fun TeacherDashboardContent(
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.s16),
-        verticalArrangement = Arrangement.spacedBy(Spacing.s12),
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     ) {
-        // Header: title + logout
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(Spacing.s20),
+            verticalArrangement = Arrangement.spacedBy(Spacing.s16),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.teacher_dashboard_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = stringResource(R.string.teacher_dashboard_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(Spacing.s8))
+                        Text(stringResource(R.string.redesign_teacher_heading), style = MaterialTheme.typography.headlineMedium)
+                        Text(stringResource(R.string.teacher_dashboard_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (onLogout != null) {
+                        IconButton(onClick = { showLogoutDialog = true }) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.profile_logout), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            item {
+                TeacherFilterBar(
+                    selectedClass = state.selectedClass,
+                    selectedDate = state.selectedDate,
+                    availableClasses = state.availableClasses,
+                    onClassSelected = onClassSelected,
+                    onDateClick = { showDatePicker = true },
+                    onDateSelected = onDateSelected,
                 )
             }
-            if (onLogout != null) {
-                IconButton(onClick = { showLogoutDialog = true }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                        contentDescription = stringResource(R.string.profile_logout),
-                        tint = MaterialTheme.colorScheme.error,
+            if (state.isLoading) {
+                item { TeacherDashboardSkeleton() }
+            } else {
+                item { TeacherSummaryGrid(stats = state.stats) }
+            }
+            if (onOpenIzinApproval != null) {
+                item {
+                    com.gynda.fridaystm.ui.component.ActionMenuRow(
+                        title = stringResource(R.string.redesign_approval),
+                        subtitle = stringResource(R.string.redesign_approval_body),
+                        icon = Icons.Default.Person,
+                        onClick = onOpenIzinApproval,
                     )
                 }
             }
-        }
-
-        // Filters: class dropdown + date chip
-        TeacherFilterBar(
-            selectedClass = state.selectedClass,
-            selectedDate = state.selectedDate,
-            availableClasses = state.availableClasses,
-            onClassSelected = onClassSelected,
-            onDateClick = { showDatePicker = true },
-            onDateSelected = onDateSelected,
-        )
-
-        // Quick actions
-        if (onOpenIzinApproval != null) {
-            androidx.compose.material3.Button(
-                onClick = onOpenIzinApproval,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Kelola Persetujuan Izin")
+            if (onOpenExportReport != null) {
+                item {
+                    com.gynda.fridaystm.ui.component.ActionMenuRow(
+                        title = stringResource(R.string.redesign_export),
+                        subtitle = stringResource(R.string.redesign_export_body),
+                        icon = Icons.Default.DateRange,
+                        onClick = onOpenExportReport,
+                    )
+                }
             }
-        }
-        if (onOpenExportReport != null) {
-            androidx.compose.material3.OutlinedButton(
-                onClick = onOpenExportReport,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Export Rekap (PDF/CSV)")
+            if (state.error != null) {
+                item { ErrorState(message = state.error, onRetry = onRefresh) }
             }
-        }
-
-        Crossfade(targetState = state.isLoading, label = "dashboardLoading") { loading ->
-            if (loading) {
-                TeacherDashboardSkeleton()
-            } else {
-                PullToRefreshBox(
-                    isRefreshing = isRefreshing,
-                    onRefresh = onRefresh,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s12)) {
-                        TeacherSummaryGrid(stats = state.stats)
-
-                        if (state.error != null) {
-                            ErrorState(message = state.error, onRetry = onRefresh)
-                        }
-
-                        Text(
-                            text = stringResource(R.string.teacher_dashboard_list_title, state.students.size),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+            if (!state.isLoading) {
+                item {
+                    Text(stringResource(R.string.teacher_dashboard_list_title, state.students.size), style = MaterialTheme.typography.titleMedium)
+                }
+                if (state.students.isEmpty()) {
+                    item {
+                        EmptyState(
+                            icon = Icons.Default.Search,
+                            title = stringResource(R.string.teacher_dashboard_empty),
+                            body = stringResource(R.string.redesign_teacher_empty_body),
                         )
-                        if (state.students.isEmpty()) {
-                            EmptyState(
-                                icon = Icons.Default.Search,
-                                title = stringResource(R.string.teacher_dashboard_empty),
-                                body = "Coba ganti filter kelas/tanggal",
-                            )
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = Spacing.s16),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.s8),
-                            ) {
-                                items(state.students, key = { it.user.uid }) { item ->
-                                    StudentAttendanceCard(
-                                        item = item,
-                                        onClick = { selectedStudent = item },
-                                        modifier = Modifier.animateItem(),
-                                    )
-                                }
-                            }
-                        }
+                    }
+                } else {
+                    items(state.students, key = { it.user.uid }) { item ->
+                        StudentAttendanceCard(item, onClick = { selectedStudent = item }, modifier = Modifier.animateItem())
                     }
                 }
             }
@@ -428,19 +399,20 @@ private fun StatCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(Radius.l),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(com.gynda.fridaystm.ui.theme.ComponentSize.border, containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = Elevation.card),
     ) {
         Column(
             Modifier.fillMaxWidth().padding(Spacing.s12),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
         ) {
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = contentColor.copy(alpha = 0.8f))
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Spacing.s4))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = contentColor)
+                Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.width(Spacing.s4))
-                Text(text = unit, style = MaterialTheme.typography.labelSmall, color = contentColor.copy(alpha = 0.8f))
+                Text(text = unit, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

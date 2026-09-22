@@ -1,5 +1,9 @@
 package com.gynda.fridaystm.ui.screen
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.OutlinedButton
+import com.gynda.fridaystm.ui.theme.ComponentSize
+import com.gynda.fridaystm.ui.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -152,15 +155,22 @@ private fun ProfileReady(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(Spacing.s20),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Column {
+            Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(Spacing.s8))
+            Text(stringResource(R.string.redesign_profile_heading), style = MaterialTheme.typography.headlineMedium)
+        }
         // --- Header card: foto, nama, NISN, kelas ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(ComponentSize.border, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
@@ -224,7 +234,11 @@ private fun ProfileReady(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(ComponentSize.border, MaterialTheme.colorScheme.outlineVariant),
+        ) {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
                 InfoRow(stringResource(R.string.profile_email), email)
                 Spacer(Modifier.height(8.dp))
@@ -235,13 +249,11 @@ private fun ProfileReady(
         }
 
         // --- Danger zone: keluar akun ---
-        Button(
+        OutlinedButton(
             onClick = onLogoutClick,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError,
-            ),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(ComponentSize.border, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.profile_logout))
         }

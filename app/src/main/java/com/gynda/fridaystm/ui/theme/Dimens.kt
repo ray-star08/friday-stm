@@ -18,6 +18,16 @@ object Spacing {
     val s32 = 32.dp
 }
 
+object ComponentSize {
+    val button = 56.dp
+    val touchTarget = 48.dp
+    val icon = 24.dp
+    val iconSmall = 20.dp
+    val brandMark = 48.dp
+    val border = 1.dp
+    val formMaxWidth = 480.dp
+}
+
 object Radius {
     val xs = 8.dp
     val s = 12.dp

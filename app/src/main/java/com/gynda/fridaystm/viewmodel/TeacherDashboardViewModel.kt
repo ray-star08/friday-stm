@@ -10,6 +10,7 @@ import com.gynda.fridaystm.data.model.StudentAttendanceItem
 import com.gynda.fridaystm.data.model.TeacherStats
 import com.gynda.fridaystm.data.model.buildStudentAttendanceList
 import com.gynda.fridaystm.data.model.calculateTeacherStats
+import com.gynda.fridaystm.data.model.earliestDailyPresensi
 import com.gynda.fridaystm.data.repository.AuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseTeacherDashboardRepository
@@ -55,7 +56,7 @@ data class TeacherDashboardUiState(
 class TeacherDashboardViewModel(
     private val repository: TeacherDashboardRepository,
     private val timeProvider: TimeProvider,
-    private val authRepository: AuthRepository = FirebaseAuthRepository(),
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _selectedClass = MutableStateFlow(TeacherDashboardDefaults.DEFAULT_CLASS)
@@ -80,8 +81,8 @@ class TeacherDashboardViewModel(
                     repository.observeIzin(kelas, date),
                     repository.observeLarkam(kelas, date),
                 ) { users, presensi, izin, larkam ->
-                    val presensiByUser = presensi.associateBy { it.userId }
-                    val izinByUser = izin.associateBy { it.userId }
+                    val presensiByUser = earliestDailyPresensi(presensi).associateBy { it.userId }
+                    val izinByUser = izin.filter { it.status == com.gynda.fridaystm.util.IzinStatus.APPROVED }.associateBy { it.userId }
                     // Larkam stream returns all classes for the date; narrow to this roster.
                     val userIdsInClass = users.map { it.uid }.toSet()
                     val classLarkam = larkam.filter { it.userId in userIdsInClass }
@@ -164,8 +165,9 @@ class TeacherDashboardViewModel(
         fun factory(
             repository: TeacherDashboardRepository = FirebaseTeacherDashboardRepository(),
             timeProvider: TimeProvider = SystemTimeProvider(),
+            authRepository: AuthRepository = FirebaseAuthRepository(),
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { TeacherDashboardViewModel(repository, timeProvider) }
+            initializer { TeacherDashboardViewModel(repository, timeProvider, authRepository) }
         }
     }
 }

@@ -1,15 +1,16 @@
 package com.gynda.fridaystm.ui.component
 
+import androidx.compose.foundation.BorderStroke
+import com.gynda.fridaystm.ui.theme.Spacing
+import com.gynda.fridaystm.ui.theme.ComponentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -52,11 +53,11 @@ fun DynamicPhaseCard(
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = visuals.container),
+        border = BorderStroke(ComponentSize.border, visuals.accent.copy(alpha = 0.2f)),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(Spacing.s24),
         ) {
             Box(
                 modifier = Modifier
@@ -72,7 +73,7 @@ fun DynamicPhaseCard(
                     modifier = Modifier.size(28.dp),
                 )
             }
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.height(Spacing.s16))
             Column {
                 Text(
                     text = visuals.eyebrow,
@@ -82,7 +83,7 @@ fun DynamicPhaseCard(
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = visuals.title,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = visuals.onContainer,
                 )
                 Spacer(Modifier.height(4.dp))

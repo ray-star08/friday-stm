@@ -11,6 +11,8 @@ import com.gynda.fridaystm.data.model.User
 import com.gynda.fridaystm.data.repository.PresensiRepository
 import com.gynda.fridaystm.data.repository.StorageRepository
 import com.gynda.fridaystm.util.LocationFix
+import com.gynda.fridaystm.util.SCHOOL_LATITUDE
+import com.gynda.fridaystm.util.SCHOOL_LONGITUDE
 import com.gynda.fridaystm.util.TimeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -159,7 +161,7 @@ class PresensiCameraViewModelTest {
     fun `success flow via processBitmap watermark upload save to Success`() = runTest {
         val storage = FakeStorageRepository()
         val presensi = FakePresensiRepository()
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
         val vm = PresensiCameraViewModel(
             storageRepository = storage,
@@ -189,7 +191,7 @@ class PresensiCameraViewModelTest {
     fun `success flow via ImageProxy closes proxy and succeeds`() = runTest {
         val storage = FakeStorageRepository()
         val presensi = FakePresensiRepository()
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
 
         val dummy = dummyBitmap()
@@ -243,7 +245,7 @@ class PresensiCameraViewModelTest {
     fun `failure when upload fails shows Error`() = runTest {
         val storage = FakeStorageRepository(shouldFail = true)
         val presensi = FakePresensiRepository()
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
         val vm = PresensiCameraViewModel(
             storageRepository = storage,
@@ -267,7 +269,7 @@ class PresensiCameraViewModelTest {
     fun `failure when firestore save fails shows Error`() = runTest {
         val storage = FakeStorageRepository()
         val presensi = FakePresensiRepository(shouldFail = true)
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
         val vm = PresensiCameraViewModel(
             storageRepository = storage,
@@ -290,7 +292,7 @@ class PresensiCameraViewModelTest {
     fun `ImageProxy is closed even on upload failure`() = runTest {
         val storage = FakeStorageRepository(shouldFail = true)
         val presensi = FakePresensiRepository()
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
         val dummy = dummyBitmap()
         val vm = PresensiCameraViewModel(
@@ -312,7 +314,7 @@ class PresensiCameraViewModelTest {
     fun `watermark applied before upload bitmap is watermarked size valid`() = runTest {
         val storage = FakeStorageRepository()
         val presensi = FakePresensiRepository()
-        val locationProvider = FakeLocationProvider(LocationFix(lat = -6.8868, lng = 107.5381, isMock = false))
+        val locationProvider = FakeLocationProvider(LocationFix(lat = SCHOOL_LATITUDE, lng = SCHOOL_LONGITUDE, isMock = false))
         val auth = FakeAuthRepository(profiles = mapOf(fakeUser.uid to fakeUser), initialUid = fakeUser.uid)
         val vm = PresensiCameraViewModel(
             storageRepository = storage,

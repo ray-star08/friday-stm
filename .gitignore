@@ -14,5 +14,10 @@
 .cxx
 local.properties
 
+# Rules test tooling and generated outputs
+/node_modules/
+*-debug.log
+/.kotlin/sessions/
+
 # Local assistant settings
 /.claude/settings.local.json

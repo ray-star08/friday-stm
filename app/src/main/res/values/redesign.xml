@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="redesign_brand">FRIDAY / STM</string>
+    <string name="redesign_brand_mark">F.</string>
+    <string name="redesign_login_heading">Masuk akun sekolah</string>
+    <string name="redesign_login_body">Satu tempat untuk kegiatan Jumat, presensi, dan progresmu.</string>
+    <string name="redesign_login_help">Belum punya akses? Hubungi admin sekolah.</string>
+    <string name="redesign_school">SMK Negeri 1 Cimahi</string>
+    <string name="redesign_home_eyebrow">JUMAT, LEBIH TERATUR</string>
+    <string name="redesign_tools">Menu siswa</string>
+    <string name="redesign_selfie">Presensi selfie</string>
+    <string name="redesign_selfie_body">Buka kamera presensi</string>
+    <string name="redesign_history">Riwayat presensi</string>
+    <string name="redesign_history_body">Lihat foto dan waktu tercatat</string>
+    <string name="redesign_izin_body">Ajukan izin atau sakit</string>
+    <string name="redesign_history_heading">Riwayat aktivitas</string>
+    <string name="redesign_history_intro">Jejak kegiatan Jumat yang sudah tercatat.</string>
+    <string name="redesign_profile_heading">Akun saya</string>
+    <string name="redesign_teacher_heading">Pantau kelas</string>
+    <string name="redesign_approval">Persetujuan izin</string>
+    <string name="redesign_approval_body">Tinjau pengajuan siswa</string>
+    <string name="redesign_export">Ekspor rekap</string>
+    <string name="redesign_export_body">Unduh laporan PDF atau CSV</string>
+    <string name="redesign_teacher_empty_body">Pilih kelas atau tanggal lain untuk melihat data.</string>
+</resources>

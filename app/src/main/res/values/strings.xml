@@ -100,8 +100,6 @@
     <string name="cd_history_selfie">Foto selfie %1$s</string>
 
     <!-- Login (Milestone 5.2) -->
-    <string name="login_title">Masuk</string>
-    <string name="login_subtitle">Gunakan email &amp; kata sandi sekolahmu.</string>
     <string name="login_email_label">Email</string>
     <string name="login_password_label">Kata sandi</string>
     <string name="login_submit">Masuk</string>
@@ -221,7 +219,6 @@
     <string name="fcm_channel_name">Pengingat Presensi</string>
 
     <!-- Teacher Dashboard -->
-    <string name="teacher_dashboard_title">Dashboard Guru</string>
     <string name="teacher_dashboard_subtitle">Monitoring kehadiran siswa real-time</string>
     <string name="teacher_dashboard_list_title">Daftar Siswa (%1$d)</string>
     <string name="teacher_dashboard_empty">Belum ada data siswa untuk kelas ini</string>

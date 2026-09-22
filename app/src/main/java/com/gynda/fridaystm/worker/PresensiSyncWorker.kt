@@ -32,6 +32,7 @@ class PresensiSyncWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         val syncer = PendingPresensiSyncer(
+            authRepository = com.gynda.fridaystm.data.repository.FirebaseAuthRepository(),
             queue = RoomPendingPresensiStore(AppDatabase.get(context).pendingPresensiDao()),
             photoCache = AppPendingPhotoCache(context),
             storageRepository = CloudinaryStorageRepository(),

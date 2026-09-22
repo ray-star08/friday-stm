@@ -62,6 +62,7 @@ import com.gynda.fridaystm.data.local.AppDatabase
 import com.gynda.fridaystm.data.local.RoomPendingPresensiStore
 import com.gynda.fridaystm.data.repository.AppPendingPhotoCache
 import com.gynda.fridaystm.data.repository.CloudinaryStorageRepository
+import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
 import com.gynda.fridaystm.data.repository.FirebasePresensiRepository
 import com.gynda.fridaystm.data.repository.OfflineFirstPresensiRepository
 import com.gynda.fridaystm.util.AndroidNetworkMonitor
@@ -89,7 +90,9 @@ fun PresensiCameraScreen(
     viewModel: PresensiCameraViewModel = viewModel(
         factory = run {
             val appContext = LocalContext.current.applicationContext
+            val authRepository = FirebaseAuthRepository()
             val offlineRepository = OfflineFirstPresensiRepository(
+                authRepository = authRepository,
                 networkMonitor = AndroidNetworkMonitor(appContext),
                 queue = RoomPendingPresensiStore(AppDatabase.get(appContext).pendingPresensiDao()),
                 photoCache = AppPendingPhotoCache(appContext),
@@ -99,6 +102,7 @@ fun PresensiCameraScreen(
                 timeProvider = SystemTimeProvider(),
             )
             PresensiCameraViewModel.factory(
+                authRepository = authRepository,
                 locationProvider = FusedLocationProvider(LocalContext.current),
                 offlineRepository = offlineRepository,
             )

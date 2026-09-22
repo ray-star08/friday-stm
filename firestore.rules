@@ -80,23 +80,34 @@ service cloud.firestore {
       return request.resource.data.updatedAt == request.time;
     }
 
+    // Bind submitted denormalized identity to the school-provisioned profile.
+    // Capture timestamp/GPS are still client claims; createdAt is receipt time.
+    function validPresensiCreate() {
+      return isSignedIn()
+        && role() in ['student', 'class_rep']
+        && request.resource.data.userId == uid()
+        && request.resource.data.studentName == get(/databases/$(database)/documents/users/$(uid())).data.nama
+        && request.resource.data.studentClass == myKelas()
+        && request.resource.data.createdAt == request.time;
+    }
+
     // ---- users/{userId} : profiles ---------------------------------------
     match /users/{userId} {
       allow read: if isSignedIn() && (uid() == userId || isStaff());
 
-      // A student may create only their OWN profile and may not self-assign a
-      // privileged role.
-      allow create: if isSignedIn()
-                    && uid() == userId
+      // School identity is provisioned by an existing admin (bootstrap via trusted
+      // Admin SDK/console). There is no self-registration flow in this app.
+      allow create: if isAdmin()
                     && request.resource.data.uid == userId
-                    && request.resource.data.role == 'student';
+                    && request.resource.data.role in ['student', 'class_rep', 'instructor', 'admin'];
 
-      // Owner may edit their profile but NOT change their role (no privilege
-      // escalation). Admins may change anything.
-      allow update: if isAdmin()
+      // Self-service never changes identity, grade, class, role or unknown fields.
+      allow update: if (isAdmin() && request.resource.data.uid == userId)
                     || (isSignedIn()
                         && uid() == userId
-                        && request.resource.data.role == resource.data.role);
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoUrl', 'fcmToken'])
+                        && request.resource.data.get('photoUrl', '') is string
+                        && request.resource.data.get('fcmToken', '') is string);
 
       allow delete: if isAdmin();
     }
@@ -122,20 +133,43 @@ service cloud.firestore {
       allow read: if isSignedIn()
                   && (resource == null || resource.data.uid == uid() || isStaff());
 
-      // Deterministic id enforces `${uid}_${date}`: a student can only create
-      // their own document and cannot forge the owner field. `hasServerTime()`
-      // rejects a tampered device clock (see the helper).
+      function validCheckin() {
+        return request.resource.data.grade == get(/databases/$(database)/documents/users/$(uid())).data.grade
+          && request.resource.data.pembiasaan.checkedIn == true
+          && request.resource.data.pembiasaan.serverTime == request.time;
+      }
+
+      // A new day starts with check-in only; complete/checkout cannot be forged
+      // in the first write. Nested phase receipt times are server-authored too.
       allow create: if isSignedIn()
+                    && role() in ['student', 'class_rep']
                     && request.resource.data.uid == uid()
                     && docId == uid() + '_' + request.resource.data.date
+                    && request.resource.data.keys().hasOnly(['uid', 'date', 'grade', 'pembiasaan', 'status', 'updatedAt'])
+                    && request.resource.data.get('status', 'incomplete') == 'incomplete'
+                    && validCheckin()
                     && hasServerTime();
 
-      // Owner merges later phases in; the owner field is immutable and every
-      // merge must re-stamp `updatedAt` from the server clock.
+      // Preserve historical fields (including legacy apel) and phase evidence.
+      // Only an unfilled check-in OR checkout following a persisted check-in may
+      // advance the day. A completed/flagged day cannot be rewritten by clients.
       allow update: if isSignedIn()
+                    && role() in ['student', 'class_rep']
                     && resource.data.uid == uid()
                     && request.resource.data.uid == uid()
-                    && hasServerTime();
+                    && request.resource.data.date == resource.data.date
+                    && docId == uid() + '_' + resource.data.date
+                    && resource.data.get('status', 'incomplete') == 'incomplete'
+                    && resource.data.get('checkout', null) == null
+                    && hasServerTime()
+                    && ((resource.data.get('pembiasaan', null) == null
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['grade', 'pembiasaan', 'updatedAt'])
+                         && validCheckin())
+                        || (resource.data.pembiasaan.checkedIn == true
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkout', 'status', 'updatedAt'])
+                            && request.resource.data.checkout.checkedOut == true
+                            && request.resource.data.checkout.serverTime == request.time
+                            && request.resource.data.status == 'complete'));
 
       // Attendance is an audit trail — never client-deletable. Corrections go
       // through admin tooling / the console.
@@ -203,13 +237,15 @@ service cloud.firestore {
     // ---- presensi/{docId} : alias legacy for presensi_records (spec wording) ---
     // Allows teacher dashboard spec collection `presensi` filtered by kelas/tanggal.
     match /presensi/{docId} {
-      allow create, read: if request.auth != null;
+      allow create: if validPresensiCreate();
+      allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
 
     // ---- presensi_records/{docId} : watermarked selfie presensi ------------
     match /presensi_records/{docId} {
-      allow create, read: if request.auth != null;
+      allow create: if validPresensiCreate();
+      allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
 
