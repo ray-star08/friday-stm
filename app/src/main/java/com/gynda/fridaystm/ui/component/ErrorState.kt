@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.gynda.fridaystm.ui.theme.Radius
 import com.gynda.fridaystm.ui.theme.Spacing
 
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun ErrorState(
     message: String,
@@ -69,6 +70,7 @@ fun ErrorState(
     }
 }
 
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; mirrors ErrorState signature.
 @Composable
 fun InlineErrorCard(
     message: String,

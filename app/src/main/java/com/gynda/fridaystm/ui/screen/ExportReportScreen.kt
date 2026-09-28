@@ -77,6 +77,7 @@ import java.util.Locale
  * generate di Dispatchers.IO, expose FileProvider Uri, dialog buka/bagikan.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun ExportReportScreen(
     onBack: (() -> Unit)? = null,

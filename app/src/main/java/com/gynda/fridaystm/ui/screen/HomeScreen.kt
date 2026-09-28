@@ -313,6 +313,7 @@ fun HomeContent(
     }
 }
 
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 private fun ReadyContent(
     state: HomeUiState.Ready,

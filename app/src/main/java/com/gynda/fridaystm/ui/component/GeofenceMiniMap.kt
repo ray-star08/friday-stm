@@ -42,6 +42,7 @@ import org.osmdroid.views.overlay.Polygon
  * @param recenterKey change this value (e.g. a click counter) to animate the
  *   camera back to the user's position on demand.
  */
+@Suppress("ClickableViewAccessibility") // MapView pan gesture; performClick() called on UP for TalkBack.
 @Composable
 fun GeofenceMiniMap(
     centerLat: Double,
@@ -97,11 +98,15 @@ fun GeofenceMiniMap(
         modifier = modifier.semantics { contentDescription = description },
         factory = {
             // Prevent parent verticalScroll from stealing map pan gestures (fix restart on drag).
+            // Calls performClick on UP for accessibility (TalkBack) without consuming the pan.
             mapView.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
                     android.view.MotionEvent.ACTION_DOWN,
                     android.view.MotionEvent.ACTION_MOVE -> v.parent.requestDisallowInterceptTouchEvent(true)
-                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_UP -> {
+                        v.parent.requestDisallowInterceptTouchEvent(false)
+                        v.performClick()
+                    }
                     android.view.MotionEvent.ACTION_CANCEL -> v.parent.requestDisallowInterceptTouchEvent(false)
                 }
                 false

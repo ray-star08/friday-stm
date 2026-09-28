@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gynda.fridaystm.ui.theme.Spacing
 
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun EmptyState(
     icon: ImageVector,

@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.location.Location
+import androidx.core.graphics.scale
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -33,7 +34,7 @@ fun addPresensiWatermark(
     if (bitmap.width > MAX_WIDTH) {
         val ratio = MAX_WIDTH.toFloat() / bitmap.width
         val newHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-        val scaled = Bitmap.createScaledBitmap(bitmap, MAX_WIDTH, newHeight, true)
+        val scaled = bitmap.scale(MAX_WIDTH, newHeight)
         if (scaled !== bitmap && !bitmap.isRecycled) {
             bitmap.recycle()
         }
@@ -162,7 +163,7 @@ fun addLarkamWatermark(
     if (bitmap.width > MAX_WIDTH) {
         val ratio = MAX_WIDTH.toFloat() / bitmap.width
         val newHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-        val scaled = Bitmap.createScaledBitmap(bitmap, MAX_WIDTH, newHeight, true)
+        val scaled = bitmap.scale(MAX_WIDTH, newHeight)
         if (scaled !== bitmap && !bitmap.isRecycled) bitmap.recycle()
         working = scaled
     }

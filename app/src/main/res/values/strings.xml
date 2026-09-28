@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Friday STM</string>
 
     <!-- Home / attendance state (resolved from HomeUiState.Error / SubmitStatus.Error, SKILL §3.2) -->
@@ -61,7 +61,6 @@
     <string name="geofence_inside">Anda berada di %1$s. Silakan check-in.</string>
     <string name="geofence_distance">Anda %1$d m dari %2$s</string>
     <string name="geofence_locating">Mencari lokasi Anda…</string>
-    <string name="geofence_out_of_range">Mendekatlah ke %1$s untuk check-in</string>
 
     <!-- Location runtime permission (Milestone 4.1) -->
     <string name="location_permission_rationale">Aplikasi butuh akses lokasi presisi untuk memastikan Anda berada di area kegiatan saat check-in.</string>
@@ -76,14 +75,12 @@
 
     <!-- Camera capture (Milestone 4.3) -->
     <string name="camera_title">Ambil Selfie</string>
-    <string name="camera_instruction">Posisikan wajah Anda di dalam bingkai lalu ambil foto.</string>
     <string name="camera_capture">Ambil Foto</string>
     <string name="camera_retake">Ulangi</string>
     <string name="camera_use_photo">Gunakan Foto</string>
     <string name="camera_permission_rationale">Aplikasi butuh akses kamera untuk selfie bukti kehadiran.</string>
     <string name="camera_permission_grant">Izinkan Kamera</string>
     <string name="camera_permission_denied">Izin kamera ditolak. Aktifkan lewat Pengaturan.</string>
-    <string name="camera_open_settings">Buka Pengaturan</string>
     <string name="cd_camera_preview">Pratinjau kamera</string>
     <string name="cd_selfie_preview">Pratinjau hasil selfie</string>
     <string name="camera_uploading">Mengunggah foto…</string>
@@ -106,12 +103,7 @@
     <string name="login_error_invalid">Email atau kata sandi salah.</string>
 
     <!-- Profile (Milestone 5.2) -->
-    <string name="profile_error_generic">Gagal memuat profil.</string>
-    <string name="profile_title">Profil</string>
-    <string name="profile_nis">NIS</string>
     <string name="profile_nisn">NISN</string>
-    <string name="profile_kelas">Kelas</string>
-    <string name="profile_grade">Angkatan</string>
     <string name="profile_logout">Keluar</string>
     <string name="cd_profile_photo">Foto profil</string>
 
@@ -143,7 +135,6 @@
     <string name="cd_minimap_recenter">Pusatkan ke lokasi saya</string>
 
     <!-- SelfiePreviewCard + CountdownTimer (Milestone 5.1 / 5.3) -->
-    <string name="status_presensi_masuk">Presensi Masuk</string>
     <string name="status_presensi_kegiatan">Presensi Kegiatan</string>
     <string name="cd_selfie_card">Foto selfie %1$s</string>
     <string name="cd_countdown">%1$s: sisa %2$s</string>
@@ -175,7 +166,6 @@
     <string name="larkam_track_title">Larkam · Lari Pagi</string>
     <string name="larkam_open">Mulai Larkam</string>
     <string name="larkam_start">Mulai Lari</string>
-    <string name="larkam_stop">Selesai &amp; Simpan</string>
     <string name="larkam_duration">Durasi</string>
     <string name="larkam_distance">Jarak</string>
     <string name="larkam_saving">Menyimpan lari…</string>
@@ -197,7 +187,8 @@
     <string name="izin_date_cancel">Batal</string>
     <string name="izin_alasan_label">Alasan</string>
     <string name="izin_alasan_hint">Contoh: Demam tinggi dan disarankan dokter untuk istirahat 2 hari.</string>
-    <string name="izin_alasan_counter">%1$d / %2$d karakter</string>
+    <!-- Counter "x / y", bukan plural quantity — by design memakai string biasa. -->
+    <string name="izin_alasan_counter" tools:ignore="PluralsCandidate">%1$d / %2$d karakter</string>
     <string name="izin_proof_label">Bukti Surat</string>
     <string name="izin_proof_hint">Lampirkan foto surat dokter / surat orang tua sebagai bukti.</string>
     <string name="izin_proof_pick">Pilih Bukti Surat</string>
@@ -215,9 +206,6 @@
     <string name="presensi_queued_title">Tersimpan Offline</string>
     <string name="presensi_queued_body">Foto tersimpan di perangkat, tetapi belum tercatat di server. Sinkronisasi akan dicoba saat online dengan akun yang sama. Periksa status antrean di beranda.</string>
 
-    <!-- FCM presensi reminders -->
-    <string name="fcm_channel_name">Pengingat Presensi</string>
-
     <!-- Teacher Dashboard -->
     <string name="teacher_dashboard_subtitle">Monitoring kehadiran siswa real-time</string>
     <string name="teacher_dashboard_list_title">Daftar Siswa (%1$d)</string>
@@ -232,5 +220,4 @@
 
     <!-- Izin Approval (Wali Kelas) -->
     <string name="izin_approval_title">Persetujuan Izin</string>
-    <string name="izin_approval_empty">Tidak ada pengajuan</string>
 </resources>

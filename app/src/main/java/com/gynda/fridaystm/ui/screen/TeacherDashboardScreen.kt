@@ -96,6 +96,7 @@ import java.util.Locale
  * and detail bottom sheet (GPS + foto bukti).
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun TeacherDashboardScreen(
     onLogout: (() -> Unit)? = null,
@@ -129,6 +130,7 @@ fun TeacherDashboardScreen(
  * composable is branch-testable with fake state.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun TeacherDashboardContent(
     state: com.gynda.fridaystm.viewmodel.TeacherDashboardUiState,

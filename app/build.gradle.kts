@@ -125,7 +125,7 @@ dependencies {
     // --- Unit test ---
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation(libs.robolectric)
 
     // --- Instrumented / UI test ---
     androidTestImplementation(platform(libs.androidx.compose.bom))

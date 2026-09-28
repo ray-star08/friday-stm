@@ -80,6 +80,7 @@ import com.gynda.fridaystm.viewmodel.IzinApprovalViewModel
  * Actions: setujui / tolak (dengan catatan) → `updateIzinStatus`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun IzinApprovalScreen(
     onBack: (() -> Unit)? = null,

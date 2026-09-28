@@ -109,6 +109,7 @@ fun PresensiHistoryScreen(
     }
 }
 
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun PresensiHistoryContent(
     state: PresensiHistoryUiState,

@@ -16,6 +16,7 @@ import com.gynda.fridaystm.util.IzinStatus
  * Centralizes the duplicated `Surface(RoundedCornerShape(50))` logic
  * from TeacherDashboardScreen.kt:295 & IzinApprovalScreen.kt:255.
  */
+@Suppress("ModifierParameter") // SKILL §4.2: modifier last; lint wants modifier first optional.
 @Composable
 fun StudentStatusBadge(
     status: StudentPresenceStatus,

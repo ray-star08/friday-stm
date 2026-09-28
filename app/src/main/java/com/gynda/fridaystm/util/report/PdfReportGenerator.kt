@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import androidx.core.graphics.toColorInt
 import com.gynda.fridaystm.data.model.StudentSummaryReport
 import java.io.File
 import java.time.Instant
@@ -57,7 +58,7 @@ object PdfReportGenerator {
                 isAntiAlias = true
             }
             val headerPaint = Paint().apply {
-                color = Color.parseColor("#1976D2")
+                color = "#1976D2".toColorInt()
                 style = Paint.Style.FILL
             }
             val headerTextPaint = Paint().apply {
@@ -112,7 +113,7 @@ object PdfReportGenerator {
 
             fun drawRow(c: Canvas, report: StudentSummaryReport, index: Int, top: Float) {
                 if (index % 2 == 0) {
-                    val bg = Paint().apply { color = Color.parseColor("#F5F5F5"); style = Paint.Style.FILL }
+                    val bg = Paint().apply { color = "#F5F5F5".toColorInt(); style = Paint.Style.FILL }
                     c.drawRect(MARGIN, top, PAGE_WIDTH - MARGIN, top + ROW_HEIGHT, bg)
                 }
                 var x = MARGIN
