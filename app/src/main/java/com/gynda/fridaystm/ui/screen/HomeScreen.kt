@@ -456,6 +456,9 @@ private fun ReadyContent(
                                 userLat = state.userLat,
                                 userLng = state.userLng,
                                 recenterKey = recenterKey,
+                                isInside = state.isInsideGeofence,
+                                distanceMeters = state.distanceMeters,
+                                targetLabel = target.label,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(16.dp)),
