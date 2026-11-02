@@ -24,7 +24,12 @@ npm install   # Node >= 22
 npm run test:rules
 ```
 
-Suite ada di `larkam.rules.test.js`. Java diperlukan untuk emulator.
+Butuh **JDK 21** (sama seperti CI). Emulator Firestore tidak jalan di Java 8.
+
+Suite yang dijalankan `jest.config.mjs`: `larkam.rules.test.js` di root, plus
+`tests/rules/*.test.js` (attendance read-model, security, transitions, capture
+outbox). Port emulator `8085` dari `firebase.emulators.json` — kalau bentrok,
+matikan dulu instance lain.
 
 ## Docs
 
