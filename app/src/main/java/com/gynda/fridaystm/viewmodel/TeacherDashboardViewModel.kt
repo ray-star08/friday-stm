@@ -109,9 +109,9 @@ class TeacherDashboardViewModel(
                             }
                         }.buffer(0))
                 }
-            }.catch { e ->
+            }.catch { _ ->
                 emit(TeacherDashboardUiState(selectedClass = request.kelas, selectedDate = request.date,
-                    availableClasses = request.classes, isLoading = false, error = e.message ?: "Gagal memuat data"))
+                    availableClasses = request.classes, isLoading = false, error = "Gagal memuat data. Periksa koneksi lalu coba lagi."))
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TeacherDashboardUiState(

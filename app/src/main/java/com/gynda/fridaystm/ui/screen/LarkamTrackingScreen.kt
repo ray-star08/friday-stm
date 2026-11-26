@@ -2,7 +2,6 @@ package com.gynda.fridaystm.ui.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Surface
@@ -43,13 +42,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gynda.fridaystm.R
 import com.gynda.fridaystm.ui.component.MAP_ATTRIBUTION
 import com.gynda.fridaystm.ui.component.applyFridayDefaults
-import com.gynda.fridaystm.ui.component.defaultTileSource
+import com.gynda.fridaystm.ui.component.applyFridayTheme
 import com.gynda.fridaystm.ui.component.ensureOsmdroidConfigured
 import com.gynda.fridaystm.ui.component.userDotDrawable
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
@@ -291,7 +289,7 @@ private fun RunPathMap(path: List<RunPoint>, modifier: Modifier = Modifier) {
                         val mapCtx = ctx.applicationContext ?: ctx
                         MapView(mapCtx).apply {
                             applyFridayDefaults()
-                            setTileSource(defaultTileSource(isDark))
+                            applyFridayTheme(isDark)
                             setBackgroundColor(surfaceColor.toArgb())
                             controller.setZoom(DEFAULT_ZOOM)
                             controller.setCenter(DEFAULT_CENTER)
@@ -321,7 +319,7 @@ private fun RunPathMap(path: List<RunPoint>, modifier: Modifier = Modifier) {
                     update = { map ->
                         if (appliedDark != isDark) {
                             try {
-                                map.setTileSource(defaultTileSource(isDark))
+                                map.applyFridayTheme(isDark)
                             } catch (_: Exception) {
                             }
                             appliedDark = isDark
@@ -413,7 +411,7 @@ private fun RunPathMap(path: List<RunPoint>, modifier: Modifier = Modifier) {
 
                 Text(
                     text = MAP_ATTRIBUTION,
-                    fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .align(Alignment.BottomStart)

@@ -56,10 +56,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gynda.fridaystm.R
 import com.gynda.fridaystm.data.model.ExportFormat
 import com.gynda.fridaystm.ui.theme.Elevation
 import com.gynda.fridaystm.ui.theme.Radius
@@ -107,24 +109,24 @@ fun ExportReportScreen(
                 showGeneratedDialog = false
                 viewModel.onGeneratedConsumed()
             },
-            title = { Text("Laporan Siap") },
-            text = { Text("File: ${state.generatedFileName}\nPilih aksi:") },
+            title = { Text(stringResource(R.string.export_dialog_title)) },
+            text = { Text(stringResource(R.string.export_dialog_body, state.generatedFileName.orEmpty())) },
             confirmButton = {
                 TextButton(onClick = {
                     openFile(context, state.generatedFileUri!!, state.exportFormat)
                     showGeneratedDialog = false
-                }) { Text("Buka File") }
+                }) { Text(stringResource(R.string.export_open_file)) }
             },
             dismissButton = {
                 Row {
                     TextButton(onClick = {
                         shareFile(context, state.generatedFileUri!!)
                         showGeneratedDialog = false
-                    }) { Text("Bagikan") }
+                    }) { Text(stringResource(R.string.export_dialog_share)) }
                     TextButton(onClick = {
                         showGeneratedDialog = false
                         viewModel.onGeneratedConsumed()
-                    }) { Text("Tutup") }
+                    }) { Text(stringResource(R.string.export_dialog_close)) }
                 }
             },
         )
@@ -133,11 +135,11 @@ fun ExportReportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Export Rekap") },
+                title = { Text(stringResource(R.string.export_title)) },
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                         }
                     }
                 },
@@ -204,9 +206,6 @@ fun ExportReportContent(
             .padding(Spacing.s16),
         verticalArrangement = Arrangement.spacedBy(Spacing.s16),
     ) {
-        Text("Rekap Kehadiran & Larkam", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Pilih kelas, periode, dan format ekspor", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
         // Kelas selector
         var expanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -214,7 +213,7 @@ fun ExportReportContent(
                 value = state.selectedClass,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Kelas") },
+                label = { Text(stringResource(R.string.teacher_filter_kelas)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -228,13 +227,13 @@ fun ExportReportContent(
         // Date range pickers
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s12)) {
             DateFieldCard(
-                label = "Mulai",
+                label = stringResource(R.string.export_start),
                 millis = state.startDate,
                 onClick = { showStartPicker = true },
                 modifier = Modifier.weight(1f),
             )
             DateFieldCard(
-                label = "Selesai",
+                label = stringResource(R.string.export_end),
                 millis = state.endDate,
                 onClick = { showEndPicker = true },
                 modifier = Modifier.weight(1f),
@@ -242,7 +241,7 @@ fun ExportReportContent(
         }
 
         // Format segmented — secondaryContainer untuk selected (M3 tonal)
-        Text("Format", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.export_format), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             SegmentedButton(
                 selected = state.exportFormat == ExportFormat.PDF,
@@ -273,9 +272,9 @@ fun ExportReportContent(
             if (state.isGenerating) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(Spacing.s8))
-                Text("Membuat Laporan…")
+                Text(stringResource(R.string.export_generating))
             } else {
-                Text("Generate & Download Report")
+                Text(stringResource(R.string.export_generate_cta))
             }
         }
 
@@ -288,10 +287,10 @@ fun ExportReportContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = Elevation.card),
             ) {
                 Column(Modifier.fillMaxWidth().padding(Spacing.s12), verticalArrangement = Arrangement.spacedBy(Spacing.s8)) {
-                    Text("File siap: ${state.generatedFileName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(stringResource(R.string.export_file_ready, state.generatedFileName.orEmpty()), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
-                        OutlinedButton(onClick = { onOpenFile(state.generatedFileUri) }, modifier = Modifier.weight(1f)) { Text("Buka File") }
-                        OutlinedButton(onClick = { onShareFile(state.generatedFileUri) }, modifier = Modifier.weight(1f)) { Text("Bagikan File") }
+                        OutlinedButton(onClick = { onOpenFile(state.generatedFileUri) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.export_open_file)) }
+                        OutlinedButton(onClick = { onShareFile(state.generatedFileUri) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.export_share_file)) }
                     }
                 }
             }
@@ -317,8 +316,8 @@ private fun ReportDatePickerDialog(initialMillis: Long, onDismiss: () -> Unit, o
     val state = rememberDatePickerState(initialSelectedDateMillis = SchoolDates.toPickerMillis(initialMillis))
     DatePickerDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { onConfirm(state.selectedDateMillis?.let(SchoolDates::fromPickerMillis)) }) { Text("OK") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Batal") } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onConfirm(state.selectedDateMillis?.let(SchoolDates::fromPickerMillis)) }) { Text(stringResource(R.string.izin_date_ok)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.izin_date_cancel)) } },
     ) { DatePicker(state = state) }
 }
 

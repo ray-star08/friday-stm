@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -89,9 +90,26 @@ fun PengajuanIzinScreen(
     val form by viewModel.formState.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    var showSuccessDialog by rememberSaveable { mutableStateOf(false) }
     val success = uiState is PengajuanIzinUiState.Success
     LaunchedEffect(success) {
-        if (success) onSubmitSuccess()
+        if (success) showSuccessDialog = true
+    }
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccessDialog = false
+                onSubmitSuccess()
+            },
+            title = { Text(stringResource(R.string.izin_submit_success_title)) },
+            text = { Text(stringResource(R.string.izin_submit_success_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSuccessDialog = false
+                    onSubmitSuccess()
+                }) { Text(stringResource(R.string.izin_date_ok)) }
+            },
+        )
     }
 
     Scaffold(
@@ -153,8 +171,9 @@ fun PengajuanIzinContent(
     ) { uri ->
         if (uri != null) {
             scope.launch(Dispatchers.IO) {
-                val bytes = context.contentResolver.openInputStream(uri)
+                val raw = context.contentResolver.openInputStream(uri)
                     ?.use { it.readBytes() }
+                val bytes = raw?.let(::normalizeProofJpeg)
                 if (bytes != null && bytes.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
                         onProofSelected(uri.toString(), bytes)
@@ -468,4 +487,29 @@ private fun PengajuanIzinErrorPreview() {
             onSubmit = {},
         )
     }
+}
+
+/**
+ * Uploader bukti hanya menerima JPEG. Pilihan non-JPEG (mis. screenshot PNG)
+ * di-decode ulang + downsample ke JPEG agar tetap terkirim; bytes JPEG asli
+ * diteruskan apa adanya. Bytes tak terbaca/rusak → null (pengguna pilih file lain).
+ */
+private fun normalizeProofJpeg(bytes: ByteArray): ByteArray? {
+    val isJpeg = bytes.size >= 3 &&
+        bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+    if (isJpeg) return bytes
+
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
+    val bitmap = android.graphics.BitmapFactory.decodeByteArray(
+        bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+    ) ?: return null
+
+    val out = java.io.ByteArrayOutputStream()
+    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+    return out.toByteArray()
 }

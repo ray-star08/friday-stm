@@ -21,6 +21,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -137,7 +139,12 @@ class TeacherDashboardViewModelTest {
         val vm = TeacherDashboardViewModel(repo, FakeTimeProvider(fixedDateTime), auth)
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
-        assertEquals("offline", vm.uiState.value.error)
+        val error = vm.uiState.value.error
+        assertNotNull(error)
+        assertFalse(
+            "raw stream text must not reach the teacher",
+            error!!.contains("offline"),
+        )
         fail = false
         vm.refresh()
         runCurrent()

@@ -1,5 +1,12 @@
 package com.gynda.fridaystm.ui.screen
 
+import android.widget.Toast
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.rememberCoroutineScope
+import com.gynda.fridaystm.BuildConfig
+import com.gynda.fridaystm.util.seeder.FirestoreDataSeeder
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -184,10 +191,10 @@ fun TeacherDashboardContent(
                         onDateSelected(picked)
                     }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.izin_date_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Batal") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.izin_date_cancel)) }
             },
         ) {
             DatePicker(state = datePickerState)
@@ -211,11 +218,33 @@ fun TeacherDashboardContent(
             contentPadding = PaddingValues(Spacing.s20),
             verticalArrangement = Arrangement.spacedBy(Spacing.s16),
         ) {
+            if (BuildConfig.DEBUG) {
+                item {
+                    val scope = rememberCoroutineScope()
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                FirestoreDataSeeder.seedMockDataIfEmpty(context)
+                                    .onSuccess {
+                                        Toast.makeText(context, "Mock data Firestore berhasil di-seed!", Toast.LENGTH_SHORT).show()
+                                        onRefresh()
+                                    }
+                                    .onFailure {
+                                        Toast.makeText(context, "Gagal seed: ${it.message}", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                    ) {
+                        Text("⚡ Seed Mock Data Firestore (Debug)")
+                    }
+                }
+            }
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(Spacing.s8))
                         Text(stringResource(R.string.redesign_teacher_heading), style = MaterialTheme.typography.headlineMedium)
                         Text(stringResource(R.string.teacher_dashboard_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -354,7 +383,7 @@ private fun TeacherSummaryGrid(
             StatCard(
                 label = stringResource(R.string.teacher_stat_hadir),
                 value = stats.totalHadir.toString(),
-                unit = "siswa",
+                unit = stringResource(R.string.teacher_unit_siswa),
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.weight(1f),
@@ -362,27 +391,33 @@ private fun TeacherSummaryGrid(
             StatCard(
                 label = stringResource(R.string.teacher_stat_izin),
                 value = stats.totalIzin.toString(),
-                unit = "siswa",
+                unit = stringResource(R.string.teacher_unit_siswa),
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f),
             )
         }
-        Text("Perlu ditinjau: ${stats.totalNeedsReview} siswa", style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error)
+        if (stats.totalNeedsReview > 0) {
+            Text(
+                text = stringResource(R.string.teacher_needs_review, stats.totalNeedsReview),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
             StatCard(
                 label = stringResource(R.string.teacher_stat_belum),
                 value = stats.totalBelum.toString(),
-                unit = "siswa",
+                unit = stringResource(R.string.teacher_unit_siswa),
                 containerColor = MaterialTheme.colorScheme.errorContainer,
                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.weight(1f),
             )
+            val larkamValue = if (stats.totalLarkamKm <= 0.0) "–" else String.format(Locale.forLanguageTag("id-ID"), "%.1f", stats.totalLarkamKm)
             StatCard(
                 label = stringResource(R.string.teacher_stat_larkam),
-                value = String.format(Locale.forLanguageTag("id-ID"), "%.1f", stats.totalLarkamKm),
-                unit = "KM",
+                value = larkamValue,
+                unit = if (stats.totalLarkamKm <= 0.0) "" else "KM",
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.weight(1f),
@@ -443,8 +478,7 @@ private fun StudentAttendanceCard(
                 interactionSource = interactionSource,
                 indication = ripple(bounded = true),
                 onClick = onClick,
-            )
-            .then(Modifier.let { m -> m }),
+            ),
         shape = RoundedCornerShape(Radius.m),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = Elevation.card),
@@ -535,17 +569,17 @@ private fun StudentDetailBottomSheet(
                 Text(stringResource(R.string.teacher_detail_foto), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 AsyncImage(
                     model = evidenceUrl,
-                    contentDescription = "Bukti presensi ${item.user.nama}",
+                    contentDescription = stringResource(R.string.cd_attendance_proof, item.user.nama),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
                 )
             }
             // Izin proof if any
             if (item.izin?.proofUrl?.isNotBlank() == true) {
-                Text("Bukti Izin", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.teacher_detail_izin), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 AsyncImage(
                     model = item.izin.proofUrl,
-                    contentDescription = "Bukti izin ${item.user.nama}",
+                    contentDescription = stringResource(R.string.cd_izin_proof_named, item.user.nama),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
                 )
@@ -563,7 +597,7 @@ private fun StudentDetailBottomSheet(
                 Text(String.format(Locale.US, "%.6f, %.6f", lat, lng), style = MaterialTheme.typography.bodyMedium)
                 // Mini-map could be embedded; keep text for simplicity
             } else if (item.status == StudentPresenceStatus.HADIR) {
-                Text("Lokasi tidak tersedia", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.location_unavailable), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             // Larkam distance

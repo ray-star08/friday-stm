@@ -67,6 +67,16 @@ class CameraViewModel(
             initializer { CameraViewModel(selfieUploader) }
         }
     }
+
+    /**
+     * Marks the uploaded URL as delivered to the attendance write. The holder
+     * calls this immediately after [onSelfieReady]-style delivery so a later
+     * recomposition (rotation, process restore) can never deliver it twice.
+     */
+    fun onUploadConsumed() {
+        val uploaded = _uiState.value as? CameraUiState.Uploaded ?: return
+        _uiState.value = uploaded.copy(consumed = true)
+    }
 }
 
 /** Exhaustive state for the selfie capture flow. */
@@ -81,5 +91,9 @@ sealed interface CameraUiState {
     data class Uploading(val bitmap: Bitmap) : CameraUiState
 
     /** Done — [secureUrl] is ready to be attached to the attendance write. */
-    data class Uploaded(val bitmap: Bitmap, val secureUrl: String) : CameraUiState
+    data class Uploaded(
+        val bitmap: Bitmap,
+        val secureUrl: String,
+        val consumed: Boolean = false,
+    ) : CameraUiState
 }

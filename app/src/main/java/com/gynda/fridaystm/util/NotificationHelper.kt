@@ -81,7 +81,7 @@ object NotificationHelper {
         )
 
         val notification = NotificationCompat.Builder(context, PRESENSI_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_friday_logo)
             .setContentTitle(title.ifBlank { CHANNEL_NAME })
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

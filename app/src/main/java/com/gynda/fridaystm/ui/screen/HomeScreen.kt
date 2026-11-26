@@ -5,11 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
-import com.gynda.fridaystm.ui.component.ActionMenuRow
-import com.gynda.fridaystm.ui.theme.Spacing
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,20 +21,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,7 +62,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -72,18 +77,17 @@ import com.gynda.fridaystm.data.model.User
 import com.gynda.fridaystm.domain.Activity
 import com.gynda.fridaystm.domain.FridayPhase
 import com.gynda.fridaystm.domain.PhaseSchedule
-import com.gynda.fridaystm.ui.component.BigActionButton
-import com.gynda.fridaystm.ui.component.CountdownTimer
-import com.gynda.fridaystm.ui.component.DynamicPhaseCard
 import com.gynda.fridaystm.ui.component.GeofenceMiniMap
+import com.gynda.fridaystm.ui.component.HeroGeofenceNote
 import com.gynda.fridaystm.ui.component.PermissionRequestContent
+import com.gynda.fridaystm.ui.component.PhaseHeroCard
 import com.gynda.fridaystm.ui.component.SelfiePreviewCard
 import com.gynda.fridaystm.ui.component.SenamCard
-import com.gynda.fridaystm.ui.component.StatusStepper
 import com.gynda.fridaystm.ui.component.TalimCard
 import com.gynda.fridaystm.ui.component.activityLabelRes
 import com.gynda.fridaystm.ui.component.openAppSettings
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
+import com.gynda.fridaystm.ui.theme.Spacing
 import com.gynda.fridaystm.BuildConfig
 import com.gynda.fridaystm.util.ActivityType
 import com.gynda.fridaystm.util.DebugTimeProvider
@@ -102,8 +106,10 @@ import com.gynda.fridaystm.viewmodel.TalimUiState
 import com.gynda.fridaystm.viewmodel.TalimViewModel
 import kotlin.math.roundToInt
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Home — stateful holder (SKILL.md §4.1).
@@ -126,7 +132,7 @@ fun HomeScreen(
     offlineQueueViewModel: OfflineQueueViewModel,
     onOpenLarkam: () -> Unit = {},
     onNavigateToPresensiCamera: () -> Unit = {},
-    onOpenPresensiHistory: () -> Unit = {},
+    onOpenGallery: () -> Unit = {},
     onOpenPengajuanIzin: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -217,11 +223,12 @@ fun HomeScreen(
             onSubmitTalim = talimViewModel::onSubmit,
             onOpenLarkam = onOpenLarkam,
             onNavigateToPresensiCamera = onNavigateToPresensiCamera,
-            onOpenPresensiHistory = onOpenPresensiHistory,
+            onOpenGallery = onOpenGallery,
             onOpenPengajuanIzin = onOpenPengajuanIzin,
             pendingCount = pendingCount,
             needsAttentionCount = needsAttentionCount,
             onSyncNow = offlineQueueViewModel::syncNow,
+            debugNow = debugNowOrNull(viewModel.debugTimeProvider),
             modifier = Modifier.fillMaxSize(),
         )
         if (BuildConfig.DEBUG) {
@@ -271,11 +278,12 @@ fun HomeContent(
     onOpenLocationSettings: () -> Unit = {},
     onOpenLarkam: () -> Unit = {},
     onNavigateToPresensiCamera: () -> Unit = {},
-    onOpenPresensiHistory: () -> Unit = {},
+    onOpenGallery: () -> Unit = {},
     onOpenPengajuanIzin: () -> Unit = {},
     pendingCount: Int = 0,
     needsAttentionCount: Int = 0,
     onSyncNow: () -> Unit = {},
+    debugNow: LocalDateTime? = null,
 ) {
     // Smooth fade between Loading / Ready / Error rather than a hard swap (M5.3).
     Crossfade(targetState = state, label = "home-state", modifier = modifier) { s ->
@@ -303,11 +311,12 @@ fun HomeContent(
                 onSubmitTalim = onSubmitTalim,
                 onOpenLarkam = onOpenLarkam,
                 onNavigateToPresensiCamera = onNavigateToPresensiCamera,
-                onOpenPresensiHistory = onOpenPresensiHistory,
+                onOpenGallery = onOpenGallery,
                 onOpenPengajuanIzin = onOpenPengajuanIzin,
                 pendingCount = pendingCount,
                 needsAttentionCount = needsAttentionCount,
                 onSyncNow = onSyncNow,
+                debugNow = debugNow,
             )
         }
     }
@@ -332,15 +341,21 @@ private fun ReadyContent(
     onSubmitTalim: (String, String, String) -> Unit,
     onOpenLarkam: () -> Unit,
     onNavigateToPresensiCamera: () -> Unit = {},
-    onOpenPresensiHistory: () -> Unit = {},
+    onOpenGallery: () -> Unit = {},
     onOpenPengajuanIzin: () -> Unit = {},
     pendingCount: Int = 0,
     needsAttentionCount: Int = 0,
     onSyncNow: () -> Unit = {},
+    debugNow: LocalDateTime? = null,
     modifier: Modifier = Modifier,
 ) {
     val submitting = submitStatus is SubmitStatus.Submitting
     val name = state.user.nama.ifBlank { stringResource(R.string.home_default_name) }
+    val spec = actionSpecFor(state.action)
+    val geofenceGated = state.action is HomeAction.CheckInPembiasaan
+    val actionEnabled = spec != null &&
+        if (geofenceGated) spec.enabled && state.isInsideGeofence else spec.enabled
+    val window = phaseWindowEpochMillis(state.phase, debugNow?.toLocalDate())
 
     Column(
         modifier = modifier
@@ -349,19 +364,37 @@ private fun ReadyContent(
             .verticalScroll(rememberScrollState())
             .padding(Spacing.s20),
     ) {
-        Text(
-            stringResource(R.string.redesign_home_eyebrow),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(Spacing.s8))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(R.drawable.ic_friday_logo),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp),
+            )
+            Spacer(Modifier.width(Spacing.s12))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = remember(debugNow) { formatToday(debugNow?.toLocalDate()) },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (state.user.kelas.isNotBlank()) {
+                ClassPill(state.user.kelas)
+            }
+        }
+        Spacer(Modifier.height(Spacing.s20))
         Text(
             text = stringResource(R.string.home_greeting, name),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Text(state.user.kelas, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(Spacing.s24))
+        Spacer(Modifier.height(Spacing.s20))
 
         // Offline queue banner: visible only while captures await signal.
         if (pendingCount > 0) {
@@ -374,127 +407,97 @@ private fun ReadyContent(
             Spacer(Modifier.height(12.dp))
         }
 
-        DynamicPhaseCard(
+        PhaseHeroCard(
             phase = state.phase,
             activeActivity = state.activeActivity,
-        )
+            isSpecialWeek = state.isSpecialWeek,
+            startEpochMillis = window?.first,
+            deadlineEpochMillis = window?.second,
+            nowProvider = { debugClockMillis(debugNow) },
+            windowText = when (state.phase) {
+                FridayPhase.PEMBIASAAN -> stringResource(R.string.home_window_pembiasaan)
+                FridayPhase.CHECKOUT -> stringResource(R.string.home_window_checkout)
+                else -> null
+            },
+            geofence = if (geofenceGated) {
+                val label = state.geofenceTarget?.label
+                HeroGeofenceNote(
+                    inside = state.isInsideGeofence,
+                    text = when {
+                        state.isInsideGeofence ->
+                            stringResource(R.string.home_area_inside, label.orEmpty())
 
-        // Special-week override banner (task 3.3): only when today's activity came
-        // from a Firestore override, and only on a day the schedule is shown.
-        if (state.isSpecialWeek && state.phase != FridayPhase.NOT_FRIDAY) {
-            Spacer(Modifier.height(12.dp))
-            SpecialWeekChip()
-        }
+                        state.distanceMeters != null && label != null -> stringResource(
+                            R.string.home_area_outside,
+                            state.distanceMeters.roundToInt(),
+                            label,
+                        )
 
-        // Overall Pembiasaan → Check-out progress. Meaningless off-Friday.
-        if (state.phase != FridayPhase.NOT_FRIDAY) {
-            Spacer(Modifier.height(24.dp))
-            StatusStepper(
-                phase = state.phase,
-                activeActivity = state.activeActivity,
-                record = state.record,
-            )
-        }
-
-        // Live countdown to the current phase's deadline (M5.3).
-        phaseDeadlineEpochMillis(state.phase)?.let { deadline ->
-            Spacer(Modifier.height(16.dp))
-            CountdownTimer(
-                targetEpochMillis = deadline,
-                label = stringResource(phaseDeadlineLabelRes(state.phase)),
-            )
-        }
-
-        // Selfie evidence for a completed check-in in the current phase (M5.1).
-        currentPhaseSelfie(state)?.let { (url, statusRes, time, valid) ->
-            Spacer(Modifier.height(16.dp))
-            SelfiePreviewCard(
-                selfieUrl = url,
-                statusLabel = stringResource(statusRes),
-                time = time,
-                valid = valid,
-            )
-        }
-
-        val spec = actionSpecFor(state.action)
-        if (spec != null) {
-            val geofenceGated = state.action is HomeAction.CheckInPembiasaan
-
-            if (geofenceGated && !locationGranted) {
-                // No location permission ⇒ no fix ⇒ the geofence gate can never open.
-                // Prompt for it here instead of showing a permanently-disabled button (task 4.1).
-                Spacer(Modifier.height(12.dp))
-                PermissionRequestContent(
-                    messageResId = if (locationPermanentlyDenied) R.string.location_permission_denied
-                    else R.string.location_permission_rationale,
-                    actionLabelResId = if (locationPermanentlyDenied) R.string.permission_open_settings
-                    else R.string.location_permission_grant,
-                    onAction = if (locationPermanentlyDenied) onOpenLocationSettings
-                    else onRequestLocationPermission,
+                        else -> stringResource(R.string.geofence_locating)
+                    },
                 )
             } else {
-                // Check-in actions are additionally gated by the live geofence check
-                // (Milestone 4.2); "done"/check-out specs keep their own enabled state.
-                val enabled = if (geofenceGated) spec.enabled && state.isInsideGeofence else spec.enabled
+                null
+            },
+            actionLabel = spec?.text,
+            actionIcon = spec?.icon,
+            actionEnabled = actionEnabled,
+            actionLoading = actionEnabled && submitting,
+            onAction = when (state.action) {
+                is HomeAction.CheckInPembiasaan -> onPembiasaanCheckIn
+                HomeAction.CheckOut -> onCheckOut
+                else -> ({}) // "done" states are disabled and non-clickable
+            },
+        )
 
-                if (geofenceGated) {
-                    GeofenceHint(
-                        inside = state.isInsideGeofence,
+        if (geofenceGated && !locationGranted) {
+            // No location permission ⇒ no fix ⇒ the geofence gate can never open.
+            // Prompt for it here instead of showing a permanently-disabled button (task 4.1).
+            Spacer(Modifier.height(Spacing.s12))
+            PermissionRequestContent(
+                messageResId = if (locationPermanentlyDenied) R.string.location_permission_denied
+                else R.string.location_permission_rationale,
+                actionLabelResId = if (locationPermanentlyDenied) R.string.permission_open_settings
+                else R.string.location_permission_grant,
+                onAction = if (locationPermanentlyDenied) onOpenLocationSettings
+                else onRequestLocationPermission,
+            )
+        }
+
+        // Mini-map: only meaningful with a resolved fence to draw around.
+        if (geofenceGated && locationGranted) {
+            state.geofenceTarget?.let { target ->
+                var recenterKey by remember { mutableIntStateOf(0) }
+                Spacer(Modifier.height(Spacing.s16))
+                Box(Modifier.fillMaxWidth().height(200.dp)) {
+                    GeofenceMiniMap(
+                        centerLat = target.lat,
+                        centerLng = target.lng,
+                        radiusMeter = target.radiusMeter,
+                        userLat = state.userLat,
+                        userLng = state.userLng,
+                        recenterKey = recenterKey,
+                        isInside = state.isInsideGeofence,
                         distanceMeters = state.distanceMeters,
-                        targetLabel = state.geofenceTarget?.label,
+                        targetLabel = target.label,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp)),
                     )
-                    Spacer(Modifier.height(12.dp))
-
-                    // Mini-map: only meaningful with a resolved fence to draw around.
-                    state.geofenceTarget?.let { target ->
-                        var recenterKey by remember { mutableIntStateOf(0) }
-                        Box(Modifier.fillMaxWidth().height(220.dp)) {
-                            GeofenceMiniMap(
-                                centerLat = target.lat,
-                                centerLng = target.lng,
-                                radiusMeter = target.radiusMeter,
-                                userLat = state.userLat,
-                                userLng = state.userLng,
-                                recenterKey = recenterKey,
-                                isInside = state.isInsideGeofence,
-                                distanceMeters = state.distanceMeters,
-                                targetLabel = target.label,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(16.dp)),
+                    if (state.userLat != null) {
+                        FilledTonalIconButton(
+                            onClick = { recenterKey++ },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(12.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Place,
+                                contentDescription = stringResource(R.string.cd_minimap_recenter),
                             )
-                            if (state.userLat != null) {
-                                FilledTonalIconButton(
-                                    onClick = { recenterKey++ },
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(12.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Place,
-                                        contentDescription = stringResource(R.string.cd_minimap_recenter),
-                                    )
-                                }
-                            }
                         }
-                        Spacer(Modifier.height(12.dp))
                     }
                 }
-
-                Spacer(Modifier.height(12.dp))
-                BigActionButton(
-                    text = spec.text,
-                    onClick = when (state.action) {
-                        is HomeAction.CheckInPembiasaan -> onPembiasaanCheckIn
-                        HomeAction.CheckOut -> onCheckOut
-                        else -> ({}) // "done" states are disabled and non-clickable
-                    },
-                    enabled = enabled,
-                    loading = enabled && submitting,
-                    icon = spec.icon,
-                    containerColor = spec.container,
-                    contentColor = spec.content,
-                )
             }
         }
 
@@ -509,28 +512,24 @@ private fun ReadyContent(
             )
         }
 
+        currentPhaseSelfie(state)?.let { (url, statusRes, time, valid) ->
+            Spacer(Modifier.height(16.dp))
+            SelfiePreviewCard(
+                selfieUrl = url,
+                statusLabel = stringResource(statusRes),
+                time = time,
+                valid = valid,
+                compact = true,
+            )
+        }
+
         Spacer(Modifier.height(Spacing.s24))
         Text(stringResource(R.string.redesign_tools), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(Spacing.s12))
-        ActionMenuRow(
-            title = stringResource(R.string.redesign_selfie),
-            subtitle = stringResource(R.string.redesign_selfie_body),
-            icon = Icons.Filled.Face,
-            onClick = onNavigateToPresensiCamera,
-        )
-        Spacer(Modifier.height(Spacing.s8))
-        ActionMenuRow(
-            title = stringResource(R.string.redesign_history),
-            subtitle = stringResource(R.string.redesign_history_body),
-            icon = Icons.Filled.DateRange,
-            onClick = onOpenPresensiHistory,
-        )
-        Spacer(Modifier.height(Spacing.s8))
-        ActionMenuRow(
-            title = stringResource(R.string.izin_open),
-            subtitle = stringResource(R.string.redesign_izin_body),
-            icon = Icons.Filled.Edit,
-            onClick = onOpenPengajuanIzin,
+        StudentMenuCard(
+            onOpenPresensiCamera = onNavigateToPresensiCamera,
+            onOpenGallery = onOpenGallery,
+            onOpenPengajuanIzin = onOpenPengajuanIzin,
         )
 
         // Larkam run tracker (Activity 4): only during Pembiasaan when the class is
@@ -573,13 +572,10 @@ private data class ActionSpec(
     val text: String,
     val enabled: Boolean,
     val icon: ImageVector,
-    val container: Color,
-    val content: Color,
 )
 
 @Composable
 private fun actionSpecFor(action: HomeAction): ActionSpec? {
-    val scheme = MaterialTheme.colorScheme
     return when (action) {
         HomeAction.None -> null
 
@@ -590,8 +586,6 @@ private fun actionSpecFor(action: HomeAction): ActionSpec? {
             ),
             enabled = true,
             icon = Icons.Filled.LocationOn,
-            container = scheme.primary,
-            content = scheme.onPrimary,
         )
 
         is HomeAction.PembiasaanDone -> ActionSpec(
@@ -601,24 +595,18 @@ private fun actionSpecFor(action: HomeAction): ActionSpec? {
             ),
             enabled = false,
             icon = Icons.Filled.CheckCircle,
-            container = scheme.secondary,
-            content = scheme.onSecondary,
         )
 
         HomeAction.CheckOut -> ActionSpec(
             text = stringResource(R.string.action_check_out),
             enabled = true,
             icon = Icons.Filled.CheckCircle,
-            container = scheme.tertiary,
-            content = scheme.onTertiary,
         )
 
         HomeAction.CheckedOut -> ActionSpec(
             text = stringResource(R.string.action_checked_out),
             enabled = false,
             icon = Icons.Filled.CheckCircle,
-            container = scheme.secondary,
-            content = scheme.onSecondary,
         )
     }
 }
@@ -630,62 +618,129 @@ private fun CenteredSpinner(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Pill badge shown when today's activity comes from a Firestore rotation override
- * rather than the cyclic formula (task 3.3). Non-interactive: it labels state, so
- * it is a [Surface], not a chip with a phantom `onClick`. The short visible text
- * is replaced for screen readers by the fuller [R.string.cd_special_week_badge].
- */
+/** Course chip at the end of the header row. */
 @Composable
-private fun SpecialWeekChip(modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.cd_special_week_badge)
+private fun ClassPill(kelas: String, modifier: Modifier = Modifier) {
     Surface(
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         shape = RoundedCornerShape(percent = 50),
-        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = modifier,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.DateRange,
-                contentDescription = null, // decorative; the Surface carries the label
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = stringResource(R.string.home_special_week_badge),
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
+        Text(
+            text = kelas,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = Spacing.s12, vertical = Spacing.s8),
+        )
     }
 }
 
 /**
- * Epoch-millis deadline of the current phase, or `null` if the phase has no
- * countdown (BEFORE/DONE/NOT_FRIDAY). Anchored to *today* so the timer counts to
- * the real wall-clock boundary. Pure display helper (no ViewModel needed).
+ * Grouped student tool list: one card, icon-led rows split by dividers —
+ * replaces the four same-weight floating cards (M3 list pattern).
  */
-private fun phaseDeadlineEpochMillis(phase: FridayPhase): Long? {
-    val time = when (phase) {
-        FridayPhase.PEMBIASAAN -> PhaseSchedule.CHECKOUT_START
-        FridayPhase.CHECKOUT -> PhaseSchedule.CHECKOUT_END
+@Composable
+private fun StudentMenuCard(
+    onOpenPresensiCamera: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenPengajuanIzin: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        MenuRow(Icons.Filled.AddCircle, R.string.redesign_selfie, R.string.redesign_selfie_body, onOpenPresensiCamera)
+        MenuDivider()
+        MenuRow(Icons.Filled.Face, R.string.gallery_open, R.string.gallery_open_body, onOpenGallery)
+        MenuDivider()
+        MenuRow(Icons.Filled.Edit, R.string.izin_open, R.string.redesign_izin_body, onOpenPengajuanIzin)
+    }
+}
+
+/** One tappable tool row; the leading icon is decorative (the title carries meaning). */
+@Composable
+private fun MenuRow(
+    icon: ImageVector,
+    @StringRes titleRes: Int,
+    @StringRes subtitleRes: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = {
+            Text(stringResource(titleRes), style = MaterialTheme.typography.titleSmall)
+        },
+        supportingContent = { Text(stringResource(subtitleRes)) },
+        leadingContent = {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    )
+}
+
+@Composable
+private fun MenuDivider(modifier: Modifier = Modifier) {
+    HorizontalDivider(
+        modifier = modifier.padding(start = 72.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+}
+
+/**
+ * Epoch-millis window (start to deadline) of the phase's countdown, or `null`
+ * for phases without one (BEFORE/DONE/NOT_FRIDAY). Anchored to *today* so the
+ * hero's progress bar tracks the real wall-clock boundary. Pure display helper.
+ *
+ * @param today override for the anchor date (DEBUG demo clock); defaults to the
+ *   device date. Without this, the debug "Jumat 07:00" simulation computes the
+ *   window for the wrong weekday.
+ */
+private fun phaseWindowEpochMillis(
+    phase: FridayPhase,
+    today: LocalDate? = null,
+): Pair<Long, Long>? {
+    val (start, end) = when (phase) {
+        FridayPhase.PEMBIASAAN -> PhaseSchedule.PEMBIASAAN_START to PhaseSchedule.CHECKOUT_START
+        FridayPhase.CHECKOUT -> PhaseSchedule.CHECKOUT_START to PhaseSchedule.CHECKOUT_END
         else -> return null
     }
-    return LocalDate.now()
-        .atTime(time)
+    val date = today ?: LocalDate.now()
+    val zone = ZoneId.systemDefault()
+    return date.atTime(start).atZone(zone).toInstant().toEpochMilli() to
+        date.atTime(end).atZone(zone).toInstant().toEpochMilli()
+}
+
+/** "Jumat, 27 November 2026" — Indonesian long date for the header. */
+private fun formatToday(today: LocalDate? = null): String =
+    (today ?: LocalDate.now())
+        .format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.forLanguageTag("id-ID")))
+
+/** Wall-clock millis, or the frozen simulated instant while the debug clock is on. */
+private fun debugClockMillis(debugNow: LocalDateTime?): Long =
+    (debugNow ?: LocalDateTime.now())
         .atZone(ZoneId.systemDefault())
         .toInstant()
         .toEpochMilli()
-}
-
-@StringRes
-private fun phaseDeadlineLabelRes(phase: FridayPhase): Int = when (phase) {
-    FridayPhase.PEMBIASAAN -> R.string.countdown_pembiasaan
-    else -> R.string.countdown_checkout
-}
 
 /** The four display values for a completed-phase [SelfiePreviewCard], or `null`. */
 private data class PhaseSelfie(
@@ -750,35 +805,6 @@ fun OfflineQueueBanner(
     }
 }
 
-/**
- * Live geofence status line shown above a check-in button: the realtime distance
- * to the target fence, a "locating" hint, or a ready message. Pure UI — the
- * inside/distance decision is made in the ViewModel (SKILL.md §3.3).
- */
-@Composable
-private fun GeofenceHint(
-    inside: Boolean,
-    distanceMeters: Double?,
-    targetLabel: String?,
-    modifier: Modifier = Modifier,
-) {
-    val label = targetLabel.orEmpty()
-    val text = when {
-        inside -> stringResource(R.string.geofence_inside, label)
-        distanceMeters != null ->
-            stringResource(R.string.geofence_distance, distanceMeters.roundToInt(), label)
-        else -> stringResource(R.string.geofence_locating)
-    }
-    val color = if (inside) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = color,
-        textAlign = TextAlign.Center,
-        modifier = modifier.fillMaxWidth(),
-    )
-}
-
 @Composable
 private fun CenteredMessage(message: String, modifier: Modifier = Modifier) {
     Box(
@@ -802,6 +828,18 @@ private fun CenteredMessage(message: String, modifier: Modifier = Modifier) {
 }
 
 // --- Debug / Demo overlay (only in DEBUG) --------------------------------
+
+/**
+ * Simulated clock reading from the debug provider, or `null` in release / when
+ * not debugging. Lets the hero's countdown + progress and the header date anchor
+ * to the simulated Friday instead of the wall clock.
+ */
+@Composable
+private fun debugNowOrNull(provider: DebugTimeProvider?): LocalDateTime? {
+    if (provider == null) return null
+    val simulated by provider.simulatedTime.collectAsStateWithLifecycle()
+    return simulated
+}
 
 /**
  * Floating debug bar for presentations: lets the presenter jump between
@@ -987,7 +1025,7 @@ private fun HomeContentCheckoutPreview() {
                 user = previewStudent,
                 phase = FridayPhase.CHECKOUT,
                 activeActivity = Activity.LARKAM,
-                // Pembiasaan done: stepper shows step 1 complete, step 2 active.
+                // Pembiasaan done: the hero shows the completed stamp and step 2's window.
                 record = AttendanceRecord(
                     uid = "u1",
                     date = "2026-08-14",

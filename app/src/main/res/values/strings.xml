@@ -6,8 +6,16 @@
     <string name="submit_error_generic">Gagal menyimpan kehadiran. Periksa koneksi lalu coba lagi.</string>
 
     <!-- Home header -->
-    <string name="home_greeting">Halo, %1$s 👋</string>
+    <string name="home_greeting">Halo, %1$s</string>
     <string name="home_default_name">Siswa</string>
+
+    <!-- Home hero (phase window chip + live countdown + geofence note) -->
+    <string name="home_window_pembiasaan">06.30 – 08.00</string>
+    <string name="home_window_checkout">08.00 – 08.30</string>
+    <string name="home_time_left">Sisa %1$s</string>
+    <string name="home_time_up">Waktu habis</string>
+    <string name="home_area_inside">Di dalam %1$s</string>
+    <string name="home_area_outside">%1$d m dari %2$s</string>
 
     <!-- Special-week rotation override badge (task 3.3) -->
     <string name="home_special_week_badge">Jadwal Khusus Pekan Ini</string>
@@ -18,24 +26,19 @@
     <string name="activity_larkam">Larkam</string>
     <string name="activity_senam">Senam</string>
 
-    <!-- DynamicPhaseCard content per FridayPhase -->
-    <string name="phase_before_eyebrow">Menunggu</string>
+    <!-- PhaseHeroCard content per FridayPhase -->
     <string name="phase_before_title">Belum Dimulai</string>
     <string name="phase_before_body">Kegiatan Jumat pagi dimulai pukul 06.30. Bersiaplah!</string>
 
-    <string name="phase_pembiasaan_eyebrow">Fase 1 · 06.30–08.00</string>
     <string name="phase_pembiasaan_title_fallback">Pembiasaan</string>
     <string name="phase_pembiasaan_body">Pembiasaan sesuai rotasi kelasmu pekan ini.</string>
 
-    <string name="phase_checkout_eyebrow">Fase 2 · 08.00</string>
     <string name="phase_checkout_title">Waktunya Check-out</string>
     <string name="phase_checkout_body">Jangan lupa check-out sebelum KBM dimulai.</string>
 
-    <string name="phase_done_eyebrow">Selesai</string>
     <string name="phase_done_title">Kegiatan Selesai</string>
     <string name="phase_done_body">Rangkaian kegiatan Jumat pagi sudah selesai. Sampai jumpa!</string>
 
-    <string name="phase_not_friday_eyebrow">Libur</string>
     <string name="phase_not_friday_title">Bukan Hari Jumat</string>
     <string name="phase_not_friday_body">Aplikasi aktif setiap Jumat pagi. Sampai jumpa Jumat!</string>
 
@@ -45,20 +48,14 @@
     <string name="action_check_out">Check-out Sekarang</string>
     <string name="action_checked_out">Sudah Check-out</string>
 
-    <!-- StatusStepper step labels (Pembiasaan → Check-out) -->
+    <!-- History step labels (Pembiasaan → Check-out) -->
     <string name="step_pembiasaan">Pembiasaan</string>
-    <string name="step_checkout">Check-out</string>
     <!-- Legacy: Apel phase removed from the live flow, kept for HistoryScreen records. -->
     <string name="step_apel">Apel</string>
 
     <!-- Content descriptions -->
-    <string name="cd_phase_icon">Ikon fase kegiatan</string>
-    <string name="cd_step_done">%1$s: selesai</string>
-    <string name="cd_step_active">%1$s: sedang berlangsung</string>
-    <string name="cd_step_upcoming">%1$s: belum</string>
 
     <!-- Geofence gating (Milestone 4.2) -->
-    <string name="geofence_inside">Anda berada di %1$s. Silakan check-in.</string>
     <string name="geofence_distance">Anda %1$d m dari %2$s</string>
     <string name="geofence_locating">Mencari lokasi Anda…</string>
 
@@ -79,22 +76,50 @@
     <string name="camera_retake">Ulangi</string>
     <string name="camera_use_photo">Gunakan Foto</string>
     <string name="camera_permission_rationale">Aplikasi butuh akses kamera untuk selfie bukti kehadiran.</string>
-    <string name="camera_permission_grant">Izinkan Kamera</string>
+    <string name="camera_permission_grant">Izinkan Akses</string>
     <string name="camera_permission_denied">Izin kamera ditolak. Aktifkan lewat Pengaturan.</string>
     <string name="cd_camera_preview">Pratinjau kamera</string>
     <string name="cd_selfie_preview">Pratinjau hasil selfie</string>
     <string name="camera_uploading">Mengunggah foto…</string>
     <string name="camera_upload_error">Gagal mengunggah foto. Coba lagi.</string>
+    <string name="camera_preview_error">Kamera tidak tersedia. Periksa izin kamera lalu coba lagi.</string>
+
+    <!-- Presensi camera screen (full-screen capture flow) -->
+    <string name="presensi_camera_close">Tutup kamera</string>
+    <string name="presensi_camera_distance_inside">Jarak %1$d m · dalam area</string>
+    <string name="presensi_camera_distance_outside">Jarak %1$d m · di luar area</string>
+    <string name="presensi_camera_processing">Memproses watermark &amp; mengunggah presensi…</string>
+    <string name="presensi_camera_permission_title">Izin Diperlukan</string>
+    <string name="presensi_camera_permission_camera">Kamera (untuk selfie presensi)</string>
+    <string name="presensi_camera_permission_location">Lokasi Presisi (untuk watermark &amp; validasi)</string>
+    <string name="presensi_camera_permission_body">Aplikasi membutuhkan izin %1$s agar presensi dapat dicatat.</string>
+    <string name="presensi_camera_permission_hint">Kamera depan akan digunakan untuk selfie, lokasi untuk watermark.</string>
+    <string name="presensi_camera_capture_failed">Gagal mengambil foto. Coba lagi.</string>
+    <string name="presensi_camera_success_title">Presensi Berhasil</string>
+    <string name="presensi_camera_success_body">Foto presensi berhasil diunggah dan dicatat.</string>
+    <string name="presensi_camera_retry">Coba Lagi</string>
+    <string name="presensi_camera_front_unavailable">Kamera depan tidak tersedia. Periksa izin kamera.</string>
 
     <!-- History (Milestone 5.1) -->
     <string name="history_error_generic">Gagal memuat riwayat. Coba lagi.</string>
     <string name="history_empty">Belum ada riwayat presensi.</string>
+    <string name="history_empty_body">Riwayat akan muncul setelah kamu check-in.</string>
     <string name="history_phase_time">Pukul %1$s</string>
     <string name="history_phase_location">Lokasi: %1$.5f, %2$.5f</string>
     <string name="history_checkout_at">Check-out pukul %1$s</string>
     <string name="history_valid">Valid</string>
     <string name="history_invalid">Di luar area</string>
     <string name="cd_history_selfie">Foto selfie %1$s</string>
+    <string name="history_day_complete">Lengkap</string>
+    <string name="history_day_partial">Sebagian</string>
+    <string name="history_day_needs_review">Perlu ditinjau</string>
+    <string name="history_day_legacy">Data lama</string>
+    <string name="history_time_unavailable">Jam tidak tersedia</string>
+    <string name="history_legacy_unavailable">Fase dan penyelesaian tidak tersedia pada data lama.</string>
+    <string name="history_detail_class">Kelas %1$s</string>
+    <string name="history_legacy_proof_title">Bukti umum data lama</string>
+    <string name="history_legacy_capture_time">Jam capture (WIB): %1$s</string>
+    <string name="history_legacy_capture_note">Bukan bukti fase atau penyelesaian kanonis.</string>
 
     <!-- Login (Milestone 5.2) -->
     <string name="login_email_label">Email</string>
@@ -134,7 +159,7 @@
     <string name="cd_minimap">Peta lokasi geofence</string>
     <string name="cd_minimap_recenter">Pusatkan ke lokasi saya</string>
 
-    <!-- SelfiePreviewCard + CountdownTimer (Milestone 5.1 / 5.3) -->
+    <!-- SelfiePreviewCard + PhaseHeroCard countdown (Milestone 5.1 / 5.3) -->
     <string name="status_presensi_kegiatan">Presensi Kegiatan</string>
     <string name="cd_selfie_card">Foto selfie %1$s</string>
     <string name="cd_countdown">%1$s: sisa %2$s</string>
@@ -186,6 +211,20 @@
     <string name="izin_date_ok">OK</string>
     <string name="izin_date_cancel">Batal</string>
     <string name="izin_alasan_label">Alasan</string>
+    <string name="izin_approval_date_range">%1$s s/d %2$s</string>
+    <string name="izin_status_pending">Menunggu</string>
+    <string name="izin_status_approved">Disetujui</string>
+    <string name="izin_status_rejected">Ditolak</string>
+    <string name="izin_approval_empty_pending">Tidak ada pengajuan menunggu</string>
+    <string name="izin_approval_empty_approved">Belum ada yang disetujui</string>
+    <string name="izin_approval_empty_rejected">Belum ada yang ditolak</string>
+    <string name="izin_approval_empty_all">Tidak ada data</string>
+    <string name="izin_approval_empty_body">Pengajuan izin/sakit akan muncul di sini</string>
+    <string name="student_badge_complete_time">Lengkap - %1$s WIB</string>
+    <string name="student_badge_pending_checkout">Belum checkout</string>
+    <string name="student_badge_legacy_selfie">Selfie lama</string>
+    <string name="student_badge_izin">Izin / Sakit</string>
+    <string name="student_badge_absent">Belum Absen</string>
     <string name="izin_alasan_hint">Contoh: Demam tinggi dan disarankan dokter untuk istirahat 2 hari.</string>
     <!-- Counter "x / y", bukan plural quantity — by design memakai string biasa. -->
     <string name="izin_alasan_counter" tools:ignore="PluralsCandidate">%1$d / %2$d karakter</string>
@@ -197,7 +236,21 @@
     <string name="izin_cd_proof_preview">Pratinjau bukti surat izin</string>
     <string name="izin_submit">Kirim Pengajuan</string>
     <string name="izin_submit_loading">Mengirim…</string>
+    <string name="izin_submit_success_title">Pengajuan terkirim</string>
+    <string name="izin_submit_success_body">Pengajuanmu sudah dikirim. Tunggu persetujuan wali kelas.</string>
     <string name="izin_open">Pengajuan Izin</string>
+
+    <!-- Izin approval (teacher) -->
+    <string name="izin_approval_student_class">Kelas: %1$s • %2$s</string>
+    <string name="izin_approval_preview_hint">Tap gambar untuk preview</string>
+    <string name="izin_approval_note_label">Catatan Wali Kelas: %1$s</string>
+    <string name="izin_approval_approve">Setujui</string>
+    <string name="izin_approval_reject">Tolak</string>
+    <string name="izin_approval_reject_title">Tolak Pengajuan</string>
+    <string name="izin_approval_reject_body">Berikan catatan alasan penolakan untuk %1$s (%2$s):</string>
+    <string name="izin_approval_reject_note_label">Catatan</string>
+    <string name="izin_approval_reject_note_hint">Contoh: Bukti tidak jelas / tanggal tidak sesuai</string>
+    <string name="izin_approval_reject_send">Kirim Penolakan</string>
 
     <!-- Offline presensi queue (Room + WorkManager auto-sync) -->
     <string name="offline_queue_banner">Foto menunggu sinkronisasi: %1$d</string>
@@ -205,6 +258,8 @@
     <string name="offline_queue_cd">Antrean presensi offline</string>
     <string name="presensi_queued_title">Tersimpan Offline</string>
     <string name="presensi_queued_body">Foto tersimpan di perangkat, tetapi belum tercatat di server. Sinkronisasi akan dicoba saat online dengan akun yang sama. Periksa status antrean di beranda.</string>
+    <string name="presensi_history_open_maps">Buka di Maps</string>
+    <string name="presensi_history_dismiss">Tap di luar untuk tutup</string>
 
     <!-- Teacher Dashboard -->
     <string name="teacher_dashboard_subtitle">Monitoring kehadiran siswa real-time</string>
@@ -216,8 +271,48 @@
     <string name="teacher_stat_belum">Belum Absen</string>
     <string name="teacher_stat_larkam">Total Larkam</string>
     <string name="teacher_detail_foto">Bukti Foto</string>
+    <string name="teacher_detail_izin">Bukti Izin</string>
     <string name="teacher_detail_lokasi">Lokasi GPS Presensi</string>
+    <string name="teacher_unit_siswa">siswa</string>
+    <string name="teacher_needs_review">Perlu ditinjau: %1$d siswa</string>
+    <string name="location_unavailable">Lokasi tidak tersedia</string>
+
+    <!-- Export report (teacher) -->
+    <string name="export_title">Ekspor Rekap</string>
+    <string name="export_format">Format</string>
+    <string name="export_start">Mulai</string>
+    <string name="export_end">Selesai</string>
+    <string name="export_generate_cta">Buat &amp; Unduh Laporan</string>
+    <string name="export_generating">Membuat laporan…</string>
+    <string name="export_file_ready">File siap: %1$s</string>
+    <string name="export_open_file">Buka File</string>
+    <string name="export_share_file">Bagikan File</string>
+    <string name="export_dialog_title">Laporan Siap</string>
+    <string name="export_dialog_body">File: %1$s\nPilih aksi:</string>
+    <string name="export_dialog_share">Bagikan</string>
+    <string name="export_dialog_close">Tutup</string>
 
     <!-- Izin Approval (Wali Kelas) -->
     <string name="izin_approval_title">Persetujuan Izin</string>
+
+    <!-- Content descriptions (aksesibilitas) -->
+    <string name="cd_back">Kembali</string>
+    <string name="cd_selfie_apel">Selfie apel</string>
+    <string name="cd_selfie_pembiasaan">Selfie pembiasaan</string>
+    <string name="cd_legacy_proof">Bukti foto data lama</string>
+    <string name="cd_izin_proof">Bukti izin</string>
+    <string name="cd_izin_proof_named">Bukti izin %1$s</string>
+    <string name="cd_presensi_capture">Ambil foto presensi</string>
+    <string name="cd_presensi_photo">Foto presensi %1$s</string>
+    <string name="cd_attendance_proof">Bukti presensi %1$s</string>
+
+    <!-- Galeri selfie -->
+    <string name="gallery_title">Galeri Selfie</string>
+    <string name="gallery_open">Galeri Selfie</string>
+    <string name="gallery_open_body">Semua bukti selfie presensimu.</string>
+    <string name="gallery_empty_title">Belum ada selfie</string>
+    <string name="gallery_empty_body">Selfie tersimpan otomatis setelah check-in.</string>
+    <string name="gallery_count">%1$d foto</string>
+    <string name="gallery_cd_photo">Foto presensi %1$s</string>
+    <string name="gallery_cd_preview">Pratinjau foto presensi</string>
 </resources>

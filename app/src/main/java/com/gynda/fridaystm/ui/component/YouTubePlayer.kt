@@ -38,7 +38,16 @@ fun YouTubePlayer(
             }
         },
         update = { webView ->
-            webView.loadData(embedHtml(videoId), "text/html", "utf-8")
+            // Per-view tag: reload only when the video actually changes — a plain
+            // recomposition must not restart playback.
+            if (webView.tag != videoId) {
+                webView.tag = videoId
+                webView.loadData(embedHtml(videoId), "text/html", "utf-8")
+            }
+        },
+        onRelease = { webView ->
+            webView.stopLoading()
+            webView.destroy()
         },
     )
 }

@@ -133,8 +133,8 @@ class ExportReportViewModel(
                         generatedFileName = result.first.name,
                     )
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isGenerating = false, errorMessage = e.message ?: "Gagal generate laporan") }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isGenerating = false, errorMessage = "Gagal generate laporan. Coba lagi.") }
             }
         }
     }

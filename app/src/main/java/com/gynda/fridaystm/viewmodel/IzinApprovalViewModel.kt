@@ -86,13 +86,13 @@ class IzinApprovalViewModel(
                     )
                 }
             }
-            .catch { e ->
+            .catch { _ ->
                 emit(
                     IzinApprovalUiState(
                         selectedFilter = _selectedFilter.value,
                         selectedClass = _selectedClass.value,
                         isLoading = false,
-                        errorMessage = e.message ?: "Gagal memuat data",
+                        errorMessage = "Gagal memuat data. Periksa koneksi lalu coba lagi.",
                     )
                 )
             }
@@ -114,7 +114,12 @@ class IzinApprovalViewModel(
             _isApproving.value = true
             _errorMessage.value = null
             _actionMessage.value = null
-            val approverUid = authRepository.currentUid ?: ""
+            val approverUid = authRepository.currentUid
+            if (approverUid.isNullOrBlank()) {
+                _isApproving.value = false
+                _errorMessage.value = "Sesi login tidak valid. Silakan login ulang."
+                return@launch
+            }
             val result = izinRepository.updateIzinStatus(
                 izinId = izinId,
                 status = ApprovalStatus.APPROVED,
@@ -128,8 +133,8 @@ class IzinApprovalViewModel(
                     // Optional FCM
                     try { fcmNotifier?.notifyStatusChanged(izinId, ApprovalStatus.APPROVED) } catch (_: Exception) {}
                 },
-                onFailure = { e ->
-                    _errorMessage.value = e.message ?: "Gagal menyetujui izin"
+                onFailure = { _ ->
+                    _errorMessage.value = "Gagal menyetujui izin. Periksa koneksi lalu coba lagi."
                 },
             )
         }
@@ -148,7 +153,12 @@ class IzinApprovalViewModel(
             _isApproving.value = true
             _errorMessage.value = null
             _actionMessage.value = null
-            val approverUid = authRepository.currentUid ?: ""
+            val approverUid = authRepository.currentUid
+            if (approverUid.isNullOrBlank()) {
+                _isApproving.value = false
+                _errorMessage.value = "Sesi login tidak valid. Silakan login ulang."
+                return@launch
+            }
             val result = izinRepository.updateIzinStatus(
                 izinId = izinId,
                 status = ApprovalStatus.REJECTED,
@@ -161,8 +171,8 @@ class IzinApprovalViewModel(
                     _actionMessage.value = "Izin ditolak"
                     try { fcmNotifier?.notifyStatusChanged(izinId, ApprovalStatus.REJECTED) } catch (_: Exception) {}
                 },
-                onFailure = { e ->
-                    _errorMessage.value = e.message ?: "Gagal menolak izin"
+                onFailure = { _ ->
+                    _errorMessage.value = "Gagal menolak izin. Periksa koneksi lalu coba lagi."
                 },
             )
         }

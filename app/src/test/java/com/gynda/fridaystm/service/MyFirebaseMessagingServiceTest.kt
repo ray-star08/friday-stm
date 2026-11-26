@@ -22,11 +22,19 @@ class MyFirebaseMessagingServiceTest {
         var lastUserId: String? = null
         var lastToken: String? = null
         var updateCalls = 0
+        var deleteCalls = 0
 
         override suspend fun updateToken(userId: String, token: String): Result<Unit> {
             updateCalls++
             lastUserId = userId
             lastToken = token
+            return if (shouldFail) Result.failure(IllegalStateException("firestore failed"))
+            else Result.success(Unit)
+        }
+
+        override suspend fun deleteToken(userId: String): Result<Unit> {
+            deleteCalls++
+            lastUserId = userId
             return if (shouldFail) Result.failure(IllegalStateException("firestore failed"))
             else Result.success(Unit)
         }

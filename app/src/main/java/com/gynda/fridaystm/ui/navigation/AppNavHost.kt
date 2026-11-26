@@ -1,6 +1,7 @@
 package com.gynda.fridaystm.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -10,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.gynda.fridaystm.ui.screen.CameraCaptureScreen
 import com.gynda.fridaystm.ui.screen.ExportReportScreen
+import com.gynda.fridaystm.ui.screen.GalleryScreen
 import com.gynda.fridaystm.ui.screen.HistoryScreen
 import com.gynda.fridaystm.ui.screen.HomeScreen
 import com.gynda.fridaystm.ui.screen.IzinApprovalScreen
@@ -17,7 +19,6 @@ import com.gynda.fridaystm.ui.screen.LarkamTrackingScreen
 import com.gynda.fridaystm.ui.screen.LoginScreen
 import com.gynda.fridaystm.ui.screen.PengajuanIzinScreen
 import com.gynda.fridaystm.ui.screen.PresensiCameraScreen
-import com.gynda.fridaystm.ui.screen.PresensiHistoryScreen
 import com.gynda.fridaystm.ui.screen.ProfileScreen
 import com.gynda.fridaystm.ui.screen.SplashScreen
 import com.gynda.fridaystm.ui.screen.TeacherDashboardScreen
@@ -135,17 +136,21 @@ fun AppNavHost(
                 offlineQueueViewModel = offlineQueueViewModel,
                 onNavigateToCheckIn = {
                     if (homeViewModel.currentCheckInContext() != null) {
-                        navController.navigate(Routes.Camera.route)
+                        navController.navigate(Routes.Camera.route) { launchSingleTop = true }
                     }
                 },
                 onNavigateToPresensiCamera = {
-                    navController.navigate(Routes.PresensiCamera.route)
+                    navController.navigate(Routes.PresensiCamera.route) { launchSingleTop = true }
                 },
-                onOpenPresensiHistory = {
-                    navController.navigate(Routes.PresensiHistory.route)
+                onOpenGallery = {
+                    navController.navigate(Routes.Gallery.route) { launchSingleTop = true }
                 },
-                onOpenLarkam = { navController.navigate(Routes.Larkam.route) },
-                onOpenPengajuanIzin = { navController.navigate(Routes.PengajuanIzin.route) },
+                onOpenLarkam = {
+                    navController.navigate(Routes.Larkam.route) { launchSingleTop = true }
+                },
+                onOpenPengajuanIzin = {
+                    navController.navigate(Routes.PengajuanIzin.route) { launchSingleTop = true }
+                },
                 onNavigateToLogin = {
                     navController.navigate(Routes.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -161,8 +166,8 @@ fun AppNavHost(
             )
         }
 
-        composable(Routes.PresensiHistory.route) {
-            PresensiHistoryScreen(
+        composable(Routes.Gallery.route) {
+            GalleryScreen(
                 onBack = { navController.popBackStack() }
             )
         }
@@ -179,15 +184,21 @@ fun AppNavHost(
 
         composable(Routes.Camera.route) { backStackEntry ->
             // Retrieve the SAME HomeViewModel instance from the Home backstack entry.
-            // This is safe because Camera is navigated to from Home (M4.2).
-            val homeEntry = remember(backStackEntry) { 
-                navController.getBackStackEntry(Routes.Home.route) 
+            // This is safe because Camera is navigated to from Home (M4.2); the
+            // runCatching guards abnormal restores where Home is missing, in
+            // which case we leave instead of crashing (mirrors LarkamCamera).
+            val homeEntry = remember(backStackEntry) {
+                runCatching { navController.getBackStackEntry(Routes.Home.route) }.getOrNull()
+            }
+            if (homeEntry == null) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
             }
             val homeViewModel: HomeViewModel = viewModel(homeEntry)
 
             val ctx = homeViewModel.currentCheckInContext()
             if (ctx == null) {
-                navController.popBackStack(Routes.Home.route, inclusive = false)
+                LaunchedEffect(Unit) { navController.popBackStack(Routes.Home.route, inclusive = false) }
             } else {
                 CameraCaptureScreen(
                     uid = ctx.uid,

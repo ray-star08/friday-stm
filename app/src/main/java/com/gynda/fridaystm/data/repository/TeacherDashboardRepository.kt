@@ -79,11 +79,14 @@ class FirebaseTeacherDashboardRepository(
         FirestoreTeacherPermitSource(FirebaseAttendanceQueryGateway(firestore)).observe(kelas, date)
 
     override fun observeLarkam(kelas: String, date: String): Flow<List<LarkamRecord>> = callbackFlow {
-        // `larkam_records` docs are written without `studentClass` (see
-        // PresensiCameraViewModel larkam branch) — so a `whereEqualTo` on
-        // class would always return empty. Instead fetch all for the date
-        // and let the ViewModel filter to `kelas` via the user roster.
+        // `larkam_records` and `presensi_records` share one payload writer
+        // (CaptureWriter.capturePayload) so both carry `timestamp` — but no
+        // `studentClass` on legacy docs, which is why the class filter stays
+        // in the ViewModel (user roster). The timestamp range keeps this
+        // listener from reading the whole collection.
         val query: Query = firestore.collection("larkam_records")
+            .whereGreaterThanOrEqualTo("timestamp", date)
+            .whereLessThanOrEqualTo("timestamp", date + "\uf8ff")
         val reg = query.addSnapshotListener { snap, err ->
             if (err != null) { close(err); return@addSnapshotListener }
             val docs = snap?.documents.orEmpty()

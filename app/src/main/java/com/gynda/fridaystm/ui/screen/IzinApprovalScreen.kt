@@ -68,6 +68,9 @@ import com.gynda.fridaystm.data.model.IzinRecord
 import com.gynda.fridaystm.ui.component.EmptyState
 import com.gynda.fridaystm.ui.component.IzinApprovalSkeleton
 import com.gynda.fridaystm.ui.component.IzinStatusBadge
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.gynda.fridaystm.ui.theme.Radius
 import com.gynda.fridaystm.ui.theme.Spacing
 import com.gynda.fridaystm.util.ApprovalFilter
@@ -90,17 +93,12 @@ fun IzinApprovalScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
 
-    LaunchedEffect(state.actionSuccessMessage) {
-        state.actionSuccessMessage?.let {
-            snackbarHost.showSnackbar(it)
-            viewModel.onMessagesConsumed()
-        }
-    }
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let {
-            snackbarHost.showSnackbar(it)
-            viewModel.onMessagesConsumed()
-        }
+    // Single effect: consume before showing so a rapid second message can't
+    // race the clear and re-trigger the other effect.
+    LaunchedEffect(state.actionSuccessMessage, state.errorMessage) {
+        val message = state.actionSuccessMessage ?: state.errorMessage ?: return@LaunchedEffect
+        viewModel.onMessagesConsumed()
+        snackbarHost.showSnackbar(message)
     }
 
     Scaffold(
@@ -110,7 +108,7 @@ fun IzinApprovalScreen(
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                         }
                     }
                 },
@@ -168,7 +166,7 @@ fun IzinApprovalContent(
             ) {
                 AsyncImage(
                     model = previewImageUrl,
-                    contentDescription = "Bukti izin",
+                    contentDescription = stringResource(R.string.cd_izin_proof),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth(0.95f)
@@ -216,9 +214,9 @@ fun IzinApprovalContent(
 
         // Tabs — PrimaryTabRow M3
         val tabs = listOf(
-            ApprovalFilter.PENDING to "Menunggu",
-            ApprovalFilter.APPROVED to "Disetujui",
-            ApprovalFilter.REJECTED to "Ditolak",
+            ApprovalFilter.PENDING to stringResource(R.string.izin_status_pending),
+            ApprovalFilter.APPROVED to stringResource(R.string.izin_status_approved),
+            ApprovalFilter.REJECTED to stringResource(R.string.izin_status_rejected),
         )
         val selectedIndex = tabs.indexOfFirst { it.first == state.selectedFilter }.let { if (it == -1) 0 else it }
         PrimaryTabRow(selectedTabIndex = selectedIndex) {
@@ -238,12 +236,12 @@ fun IzinApprovalContent(
                     EmptyState(
                         icon = Icons.Default.Info,
                         title = when (state.selectedFilter) {
-                            ApprovalFilter.PENDING -> "Tidak ada pengajuan menunggu"
-                            ApprovalFilter.APPROVED -> "Belum ada yang disetujui"
-                            ApprovalFilter.REJECTED -> "Belum ada yang ditolak"
-                            else -> "Tidak ada data"
+                            ApprovalFilter.PENDING -> stringResource(R.string.izin_approval_empty_pending)
+                            ApprovalFilter.APPROVED -> stringResource(R.string.izin_approval_empty_approved)
+                            ApprovalFilter.REJECTED -> stringResource(R.string.izin_approval_empty_rejected)
+                            else -> stringResource(R.string.izin_approval_empty_all)
                         },
-                        body = "Pengajuan izin/sakit akan muncul di sini",
+                        body = stringResource(R.string.izin_approval_empty_body),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -297,22 +295,26 @@ private fun IzinApprovalCard(
                 Spacer(Modifier.width(Spacing.s12))
                 Column(Modifier.weight(1f)) {
                     Text(izin.nama.ifBlank { "-" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Text("Kelas: ${izin.kelas.ifBlank { "-" }} • ${izin.tipe}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    Text("${izin.startDate} s/d ${izin.endDate}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.izin_approval_student_class, izin.kelas.ifBlank { "-" }, izin.tipe), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    Text(
+                        stringResource(R.string.izin_approval_date_range, formatDateId(izin.startDate), formatDateId(izin.endDate)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (izin.status != com.gynda.fridaystm.util.IzinStatus.PENDING) {
                     IzinStatusBadge(statusWire = izin.status)
                 }
             }
 
-            Text("Alasan:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.izin_alasan_label), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text(izin.alasan, style = MaterialTheme.typography.bodyMedium)
 
             if (izin.proofUrl.isNotBlank()) {
-                Text("Bukti Surat:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.izin_proof_label), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 AsyncImage(
                     model = izin.proofUrl,
-                    contentDescription = "Bukti izin ${izin.nama}",
+                    contentDescription = stringResource(R.string.cd_izin_proof_named, izin.nama),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -321,11 +323,11 @@ private fun IzinApprovalCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable(onClick = onImageClick),
                 )
-                Text("Tap gambar untuk preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.izin_approval_preview_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (izin.approvalNote.isNotBlank()) {
-                Text("Catatan Wali Kelas: ${izin.approvalNote}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.izin_approval_note_label, izin.approvalNote), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (showActions) {
@@ -334,12 +336,12 @@ private fun IzinApprovalCard(
                         onClick = onApprove,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.weight(1f),
-                    ) { Text("Setujui") }
+                    ) { Text(stringResource(R.string.izin_approval_approve)) }
                     Button(
                         onClick = onReject,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.weight(1f),
-                    ) { Text("Tolak") }
+                    ) { Text(stringResource(R.string.izin_approval_reject)) }
                 }
             }
         }
@@ -355,15 +357,15 @@ private fun RejectReasonDialog(
     var note by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tolak Pengajuan") },
+        title = { Text(stringResource(R.string.izin_approval_reject_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s8)) {
-                Text("Berikan catatan alasan penolakan untuk ${izin.nama} (${izin.kelas}):", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.izin_approval_reject_body, izin.nama, izin.kelas), style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("Catatan") },
-                    placeholder = { Text("Contoh: Bukti tidak jelas / tanggal tidak sesuai") },
+                    label = { Text(stringResource(R.string.izin_approval_reject_note_label)) },
+                    placeholder = { Text(stringResource(R.string.izin_approval_reject_note_hint)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                 )
@@ -373,10 +375,17 @@ private fun RejectReasonDialog(
             TextButton(
                 onClick = { onConfirm(note) },
                 enabled = note.trim().isNotBlank(),
-            ) { Text("Kirim Penolakan") }
+            ) { Text(stringResource(R.string.izin_approval_reject_send)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Batal") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.izin_date_cancel)) }
         },
     )
+}
+
+/** ISO `yyyy-MM-dd` → `27 Nov 2026`; blank/invalid stays as-is. */
+private fun formatDateId(iso: String): String = try {
+    LocalDate.parse(iso).format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("id", "ID")))
+} catch (_: Exception) {
+    iso
 }

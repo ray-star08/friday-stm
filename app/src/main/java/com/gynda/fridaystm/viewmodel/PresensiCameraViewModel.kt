@@ -70,8 +70,14 @@ class PresensiCameraViewModel(
                 )
                 val bytes = withContext(processingDispatcher) { photo.jpeg(draft) }
                 check(authRepository.currentUid == uid) { "Akun berubah. Ulangi pengambilan foto." }
-                _uiState.value = when (val result = captureRepository.submitCapture(draft, bytes).getOrThrow()) {
-                    is PresensiSubmitResult.Uploaded -> PresensiCameraUiState.Success(result.imageUrl)
+                val submitted = captureRepository.submitCapture(draft, bytes).getOrElse {
+                    // Raw upload/queue errors (Cloudinary HTTP, config text, IO) are
+                    // infrastructure details — never rendered to the student.
+                    _uiState.value = PresensiCameraUiState.Error(MSG_SEND_FAILED)
+                    return@launch
+                }
+                _uiState.value = when (submitted) {
+                    is PresensiSubmitResult.Uploaded -> PresensiCameraUiState.Success(submitted.imageUrl)
                     PresensiSubmitResult.QueuedOffline -> PresensiCameraUiState.QueuedOffline
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -111,3 +117,6 @@ sealed interface PresensiCameraUiState {
     data class Error(val message: String) : PresensiCameraUiState
     data object QueuedOffline : PresensiCameraUiState
 }
+
+/** User-facing fallback when the submit pipeline fails for infrastructure reasons. */
+private const val MSG_SEND_FAILED = "Gagal mengirim foto. Periksa koneksi lalu coba lagi."

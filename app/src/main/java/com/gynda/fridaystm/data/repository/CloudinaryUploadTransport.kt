@@ -24,8 +24,8 @@ internal suspend fun uploadCloudinary(client: OkHttpClient, request: Request, cl
         client.dispatcher.executorService.execute {
             val outcome = runCatching {
                 call.execute().use { response ->
-                    requireSuccessfulCloudinaryResponse(response.code)
                     val payload = response.body?.string().orEmpty()
+                    requireSuccessfulCloudinaryResponse(response.code)
                     verifiedCloudinaryUrl(JSONObject(payload).optString("secure_url"), cloudName)
                 }
             }
@@ -36,6 +36,8 @@ internal suspend fun uploadCloudinary(client: OkHttpClient, request: Request, cl
 
 internal fun requireSuccessfulCloudinaryResponse(code: Int) {
     if (code in 200..299) return
+    // Deliberately no response body: Cloudinary echoes upload/config details
+    // that must not end up in an exception message (see CloudinaryUploadTest).
     val message = "Cloudinary upload failed (HTTP $code)"
     if (code == 408 || code == 429 || code >= 500) throw IOException(message)
     throw IllegalStateException(message)

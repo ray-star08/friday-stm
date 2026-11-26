@@ -33,6 +33,9 @@ sealed interface PresensiHistoryUiState {
     data class Error(val message: String) : PresensiHistoryUiState
 }
 
+/** User-facing fallback for load failures (raw Firestore/IO text stays out of the UI). */
+private const val MSG_LOAD_FAILED = "Gagal memuat riwayat. Periksa koneksi lalu coba lagi."
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class PresensiHistoryViewModel(
     authRepository: AuthRepository,
@@ -60,12 +63,13 @@ class PresensiHistoryViewModel(
                     if (list.isEmpty()) PresensiHistoryUiState.Empty
                     else PresensiHistoryUiState.Success(list)
                 },
-                onFailure = { e ->
-                    PresensiHistoryUiState.Error(e.message ?: "Gagal memuat riwayat")
+                onFailure = { _ ->
+                    // Infrastructure text (Firestore codes, IO) is not user-facing.
+                    PresensiHistoryUiState.Error(MSG_LOAD_FAILED)
                 }
             )
         }
-        .catch { e -> emit(PresensiHistoryUiState.Error(e.message ?: "Gagal memuat riwayat")) }
+        .catch { _ -> emit(PresensiHistoryUiState.Error(MSG_LOAD_FAILED)) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

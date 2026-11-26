@@ -36,8 +36,8 @@ sealed interface Routes {
     /** Presensi selfie with watermark + Storage upload (watermarked presensi). */
     data object PresensiCamera : Routes { override val route = "presensi_camera" }
 
-    /** Presensi history list (watermarked) */
-    data object PresensiHistory : Routes { override val route = "presensi_history" }
+    /** Galeri grid semua bukti selfie presensi. */
+    data object Gallery : Routes { override val route = "gallery" }
 
     /** Form pengajuan izin/sakit + upload bukti surat (`izin_records`). */
     data object PengajuanIzin : Routes { override val route = "pengajuan_izin" }
@@ -61,7 +61,7 @@ enum class TopLevelDestination(
     val label: String,
     val icon: ImageVector,
 ) {
-    HOME(Routes.Home.route, "Home", Icons.Default.Home),
+    HOME(Routes.Home.route, "Beranda", Icons.Default.Home),
     HISTORY(Routes.History.route, "Riwayat", Icons.Default.DateRange),
     PROFILE(Routes.Profile.route, "Profil", Icons.Default.Person),
 }

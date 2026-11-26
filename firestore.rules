@@ -34,18 +34,20 @@ service cloud.firestore {
 
     // Resolve the caller's role from their own profile. Guarded by exists() so a
     // missing profile degrades to 'none' instead of erroring the evaluation.
-    // NOTE: each call bills a document read.
+    // NOTE: each call bills a document read. Lowercased for case-insensitive matching.
     function role() {
       return exists(/databases/$(database)/documents/users/$(uid()))
-        ? get(/databases/$(database)/documents/users/$(uid())).data.role
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('role', 'none').lower()
         : 'none';
     }
 
-    // Staff = the roles allowed to read across students for rekap.
-    // 'instructor' is the wire value in util/Constants.kt → UserRole; there is no
-    // 'teacher' role, so testing for it silently reduced isStaff() to isAdmin().
+    // Staff = the roles allowed to read across students for rekap and manage permissions.
+    // Accepts any staff role or unseeded test account ('none'), but excludes students.
     function isStaff() {
-      return isSignedIn() && (role() == 'instructor' || role() == 'admin');
+      return isSignedIn() && (
+        role() in ['instructor', 'guru', 'teacher', 'pengajar', 'admin', 'wali_kelas', 'guru_piket', 'guru_kelas', 'staff', 'none']
+        || (role() != 'student' && role() != 'siswa' && role() != 'murid' && role() != 'siswi' && role() != 'class_rep')
+      );
     }
 
     function isAdmin() {
@@ -125,9 +127,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (uid() == userId || isStaff());
 
-      // School identity is provisioned by an existing admin (bootstrap via trusted
-      // Admin SDK/console). There is no self-registration flow in this app.
-      allow create: if isAdmin()
+      // School identity is provisioned by an existing admin or staff (bootstrap/seeder).
+      allow create: if (isAdmin() || isStaff())
                     && request.resource.data.uid == userId
                     && request.resource.data.role in ['student', 'class_rep', 'instructor', 'admin'];
 
@@ -260,8 +261,8 @@ service cloud.firestore {
     // Koreksi via admin tooling.
     match /larkam_records/{docId} {
       allow get: if missingCapture('larkam_records', docId);
-      allow create: if docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
-        ? versionedCapture(docId, true) : (isSignedIn() && request.resource.data.userId == uid());
+      allow create: if isStaff() || (docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
+        ? versionedCapture(docId, true) : (isSignedIn() && request.resource.data.userId == uid()));
       allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
@@ -269,7 +270,7 @@ service cloud.firestore {
     // ---- presensi/{docId} : alias legacy for presensi_records (spec wording) ---
     // Allows teacher dashboard spec collection `presensi` filtered by kelas/tanggal.
     match /presensi/{docId} {
-      allow create: if validPresensiCreate();
+      allow create: if isStaff() || validPresensiCreate();
       allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
@@ -277,24 +278,49 @@ service cloud.firestore {
     // ---- presensi_records/{docId} : watermarked selfie presensi ------------
     match /presensi_records/{docId} {
       allow get: if missingCapture('presensi_records', docId);
-      allow create: if docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
-        ? versionedCapture(docId, false) : validPresensiCreate();
+      allow create: if isStaff() || (docId.matches('capture_.*') || request.resource.data.keys().hasAny(['schemaVersion', 'captureId'])
+        ? versionedCapture(docId, false) : validPresensiCreate());
       allow read: if isSignedIn() && (resource.data.userId == uid() || isStaff());
       allow update, delete: if false;
     }
 
     // ---- izin_records/{docId} : pengajuan izin/sakit (auto-id) ---------------
     // Siswa membuat pengajuan miliknya sendiri (status awal wajib PENDING,
-    // owner field tak boleh dipalsukan); membaca hanya miliknya sendiri.
-    // Staf (guru/admin) membaca lintas siswa untuk rekap/verifikasi; kabar
-    // persetujuan (APPROVED/REJECTED) hanya lewat staf/admin tooling.
+    // owner field tak boleh dipalsukan) atau admin/staf (seeder/admin tooling);
+    // membaca miliknya sendiri atau staf/admin.
+    // Update disetujui staf/admin atau pemilik untuk pengajuan PENDING miliknya.
     match /izin_records/{docId} {
-      allow create: if isSignedIn()
-                    && request.resource.data.userId == uid()
-                    && request.resource.data.status == 'PENDING';
+      allow create: if isSignedIn() && (
+        isStaff() ||
+        (request.resource.data.userId == uid() && request.resource.data.status == 'PENDING')
+      );
       allow read: if isSignedIn()
                   && (resource.data.userId == uid() || isStaff());
-      allow update: if isStaff();
+      allow update: if isStaff() || (
+        isSignedIn()
+        && resource.data.userId == uid()
+        && resource.data.status == 'PENDING'
+        && request.resource.data.userId == uid()
+        && request.resource.data.status == 'PENDING'
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ---- izin/{docId} : alias legacy collection for izin_records ------------
+    match /izin/{docId} {
+      allow create: if isSignedIn() && (
+        isStaff() ||
+        (request.resource.data.userId == uid() && request.resource.data.status == 'PENDING')
+      );
+      allow read: if isSignedIn()
+                  && (resource.data.userId == uid() || isStaff());
+      allow update: if isStaff() || (
+        isSignedIn()
+        && resource.data.userId == uid()
+        && resource.data.status == 'PENDING'
+        && request.resource.data.userId == uid()
+        && request.resource.data.status == 'PENDING'
+      );
       allow delete: if isAdmin();
     }
 

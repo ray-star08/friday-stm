@@ -174,13 +174,20 @@ class LarkamViewModel(
         }
         val prev = lastPoint
         val added = if (prev != null) distanceBetween(prev.lat, prev.lng, fix.lat, fix.lng) else 0.0
-        val point = RunPoint(fix.lat, fix.lng)
-        lastPoint = point
-        _uiState.value = cur.copy(
-            elapsedSec = elapsed,
-            distanceMeters = cur.distanceMeters + added,
-            path = cur.path + point,
-        )
+        // GPS jitter (5–20m) while standing still would otherwise inflate the
+        // distance every tick. Only fixes that moved ≥ MIN_DISPLACEMENT_M extend
+        // the trail; the clock still advances below it.
+        if (prev == null || added >= MIN_DISPLACEMENT_M) {
+            val point = RunPoint(fix.lat, fix.lng)
+            lastPoint = point
+            _uiState.value = cur.copy(
+                elapsedSec = elapsed,
+                distanceMeters = cur.distanceMeters + added,
+                path = cur.path + point,
+            )
+        } else {
+            _uiState.value = cur.copy(elapsedSec = elapsed)
+        }
     }
 
     /** Calculates distance using Android Location.distanceBetween (spec compliant) with haversine fallback for JVM tests. */
@@ -268,6 +275,14 @@ class LarkamViewModel(
         // ponytail: fixed 3s poll — good enough for a campus jog; make it adaptive
         // (speed-based) only if battery/precision becomes a real complaint.
         private const val DEFAULT_POLL_MS = 3_000L
+
+        /**
+         * Minimum displacement (m) per tick that extends the trail. Below this
+         * the fix is treated as GPS noise: the clock advances, the path and
+         * distance do not. ~2m keeps a normal walk (~4m/tick) while killing
+         * stand-still jitter inflation.
+         */
+        private const val MIN_DISPLACEMENT_M = 2.0
 
         fun factory(
             locationProvider: LocationProvider,

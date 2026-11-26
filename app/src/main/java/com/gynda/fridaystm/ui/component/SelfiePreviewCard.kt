@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +44,12 @@ fun SelfiePreviewCard(
     time: String,
     modifier: Modifier = Modifier,
     valid: Boolean = true,
+    compact: Boolean = false,
 ) {
+    if (compact) {
+        CompactSelfiePreview(selfieUrl, statusLabel, time, valid, modifier)
+        return
+    }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             AsyncImage(
@@ -61,6 +67,44 @@ fun SelfiePreviewCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                StatusBadge(label = statusLabel, valid = valid)
+                Text(
+                    text = stringResource(R.string.history_phase_time, time),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Compact variant: 72dp thumbnail + badge/time inline. Keeps the primary
+ * check-in action above the fold instead of a full-bleed square photo.
+ */
+@Composable
+private fun CompactSelfiePreview(
+    selfieUrl: String,
+    statusLabel: String,
+    time: String,
+    valid: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AsyncImage(
+                model = selfieUrl,
+                contentDescription = stringResource(R.string.cd_selfie_card, statusLabel),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 StatusBadge(label = statusLabel, valid = valid)
                 Text(
                     text = stringResource(R.string.history_phase_time, time),

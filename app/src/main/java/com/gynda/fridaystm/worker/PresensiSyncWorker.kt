@@ -42,7 +42,11 @@ class PresensiSyncWorker(
         return try {
             val summary = syncer.syncPending()
             if (summary.hasFailures) Result.retry() else Result.success()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // CancellationException is an Exception subclass: rethrow it so a
+            // WorkManager cancel (e.g. logout's cancelUniqueWork) actually stops
+            // instead of resurrecting the worker via retry().
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.retry()
         }
     }

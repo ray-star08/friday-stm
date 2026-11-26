@@ -20,7 +20,7 @@ class PendingPhotoDurabilityTest {
         val first = cache.savePendingPhoto("alice", time, byteArrayOf(1)).getOrThrow()
         val second = cache.savePendingPhoto("alice", time, byteArrayOf(2)).getOrThrow()
         assertNotEquals(first, second)
-        assertTrue(File(first).canonicalPath.startsWith(context.noBackupFilesDir.canonicalPath + "/"))
+        assertTrue(File(first).canonicalPath.startsWith(context.noBackupFilesDir.canonicalPath + File.separator))
         File(context.cacheDir, AppPendingPhotoCache.DIR_NAME).deleteRecursively()
         assertArrayEquals(byteArrayOf(1), cache.readPhoto(first))
         assertArrayEquals(byteArrayOf(2), cache.readPhoto(second))

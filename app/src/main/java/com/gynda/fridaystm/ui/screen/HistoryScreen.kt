@@ -2,6 +2,7 @@ package com.gynda.fridaystm.ui.screen
 
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
+import com.gynda.fridaystm.ui.component.ErrorState
 import com.gynda.fridaystm.ui.theme.ComponentSize
 import com.gynda.fridaystm.ui.theme.Spacing
 import androidx.compose.foundation.background
@@ -24,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,10 +61,13 @@ import com.gynda.fridaystm.data.model.AttendanceRecord
 import com.gynda.fridaystm.data.model.AttendanceDay
 import com.gynda.fridaystm.data.model.AttendanceDayStatus
 import com.gynda.fridaystm.data.model.schoolCaptureTime
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.compose.ui.platform.testTag
 import com.gynda.fridaystm.data.model.AttendanceDayProjector
 import com.gynda.fridaystm.data.model.PembiasaanStamp
+import com.gynda.fridaystm.ui.component.EmptyState
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
 import com.gynda.fridaystm.util.ActivityType
 import com.gynda.fridaystm.viewmodel.HistoryUiState
@@ -78,13 +83,14 @@ fun HistoryScreen(
     viewModel: HistoryViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    HistoryContent(state = uiState, modifier = modifier)
+    HistoryContent(state = uiState, onRetry = viewModel::retry, modifier = modifier)
 }
 
 /** History — stateless content; renders purely from [state] so it is previewable. */
 @Composable
 fun HistoryContent(
     state: HistoryUiState,
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selected by remember(state) { mutableStateOf<AttendanceDay?>(null) }
@@ -95,28 +101,37 @@ fun HistoryContent(
     ) {
         item {
             Column {
-                Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(Spacing.s8))
                 Text(stringResource(R.string.redesign_history_heading), style = MaterialTheme.typography.headlineMedium)
                 Text(stringResource(R.string.redesign_history_intro), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         when (state) {
             HistoryUiState.Loading -> item { CenteredSpinner() }
-            HistoryUiState.Empty -> item { CenteredMessage(stringResource(R.string.history_empty)) }
-            is HistoryUiState.Error -> item { CenteredMessage(stringResource(state.messageResId)) }
+            HistoryUiState.Empty -> item {
+                EmptyState(
+                    icon = Icons.Filled.DateRange,
+                    title = stringResource(R.string.history_empty),
+                    body = stringResource(R.string.history_empty_body),
+                    modifier = Modifier.fillParentMaxHeight(),
+                )
+            }
+            is HistoryUiState.Error -> item { ErrorState(message = stringResource(state.messageResId), onRetry = onRetry) }
             is HistoryUiState.Success -> items(state.records, key = { it.id }) { day ->
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.s8)) {
-                    Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge,
-                        color = if (day.status == AttendanceDayStatus.NEEDS_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    // "Lengkap" is redundant with the card body; only flag the
+                    // statuses the student still has to act on.
+                    if (day.status != AttendanceDayStatus.COMPLETE) {
+                        Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge,
+                            color = if (day.status == AttendanceDayStatus.NEEDS_REVIEW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    }
                     if (day.attendance != null) {
                         AttendanceHistoryCard(day.attendance, onClick = { selected = day })
                     } else {
                         Card(onClick = { selected = day }, modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(Spacing.s16)) {
-                                Text(day.date, style = MaterialTheme.typography.titleMedium)
-                                Text(day.time.ifBlank { "Jam tidak tersedia" }, style = MaterialTheme.typography.bodyMedium)
-                                Text("Fase dan penyelesaian tidak tersedia pada data lama.", style = MaterialTheme.typography.bodySmall)
+                                Text(formatDateId(day.date), style = MaterialTheme.typography.titleMedium)
+                                Text(day.time.ifBlank { stringResource(R.string.history_time_unavailable) }, style = MaterialTheme.typography.bodyMedium)
+                                Text(stringResource(R.string.history_legacy_unavailable), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -131,12 +146,12 @@ fun HistoryContent(
             Dialog(onDismissRequest = { selected = null }) {
                 Card(Modifier.testTag("legacy-attendance-detail")) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(Spacing.s16)) {
-                        Text(day.date, style = MaterialTheme.typography.titleLarge)
+                        Text(formatDateId(day.date), style = MaterialTheme.typography.titleLarge)
                         Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge)
                         Text(day.time)
-                        Text("Fase dan penyelesaian tidak tersedia pada data lama.")
-                        if (day.imageUrl.isNotBlank()) AsyncImage(day.imageUrl, "Bukti selfie lama", modifier = Modifier.fillMaxWidth().height(220.dp))
-                        TextButton(onClick = { selected = null }) { Text("Tutup") }
+                        Text(stringResource(R.string.history_legacy_unavailable))
+                        if (day.imageUrl.isNotBlank()) AsyncImage(day.imageUrl, stringResource(R.string.cd_legacy_proof), modifier = Modifier.fillMaxWidth().height(220.dp))
+                        TextButton(onClick = { selected = null }) { Text(stringResource(R.string.export_dialog_close)) }
                     }
                 }
             }
@@ -144,11 +159,19 @@ fun HistoryContent(
     }
 }
 
+@Composable
 private fun dayLabel(status: AttendanceDayStatus): String = when (status) {
-    AttendanceDayStatus.COMPLETE -> "Lengkap"
-    AttendanceDayStatus.PARTIAL -> "Sebagian"
-    AttendanceDayStatus.NEEDS_REVIEW -> "Perlu ditinjau"
-    AttendanceDayStatus.LEGACY -> "Data lama"
+    AttendanceDayStatus.COMPLETE -> stringResource(R.string.history_day_complete)
+    AttendanceDayStatus.PARTIAL -> stringResource(R.string.history_day_partial)
+    AttendanceDayStatus.NEEDS_REVIEW -> stringResource(R.string.history_day_needs_review)
+    AttendanceDayStatus.LEGACY -> stringResource(R.string.history_day_legacy)
+}
+
+/** ISO `yyyy-MM-dd` → "27 Nov 2026"; falls back to the raw value. */
+private fun formatDateId(iso: String): String = try {
+    LocalDate.parse(iso).format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("id", "ID")))
+} catch (_: Exception) {
+    iso
 }
 
 /**
@@ -171,7 +194,7 @@ private fun AttendanceHistoryCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
-                text = record.date,
+                text = formatDateId(record.date),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -279,15 +302,15 @@ private fun AttendanceDetailDialog(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.testTag("canonical-attendance-detail").fillMaxWidth().padding(16.dp)) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-                Text(record.date, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(formatDateId(record.date), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(dayLabel(day.status), style = MaterialTheme.typography.labelLarge)
-                Text("Kelas ${record.grade} • ${record.status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.history_detail_class, record.grade), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 record.apel?.takeIf { it.checkedIn }?.let { apel ->
                     Text(stringResource(R.string.step_apel), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     if (apel.selfieUrl.isNotBlank()) {
-                        AsyncImage(model = apel.selfieUrl, contentDescription = "Selfie Apel", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+                        AsyncImage(model = apel.selfieUrl, contentDescription = stringResource(R.string.cd_selfie_apel), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
                         Spacer(Modifier.height(8.dp))
                     }
                     Text(stringResource(R.string.history_phase_time, apel.time), style = MaterialTheme.typography.bodySmall)
@@ -298,7 +321,7 @@ private fun AttendanceDetailDialog(
                         TextButton(onClick = {
                             val uri = "geo:${apel.lat},${apel.lng}?q=${apel.lat},${apel.lng}".toUri()
                             try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
-                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Maps") }
+                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.presensi_history_open_maps)) }
                     }
                     Spacer(Modifier.height(16.dp))
                 }
@@ -306,7 +329,7 @@ private fun AttendanceDetailDialog(
                     Text(pembiasaanLabel(pemb.activity), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     if (pemb.selfieUrl.isNotBlank()) {
-                        AsyncImage(model = pemb.selfieUrl, contentDescription = "Selfie Pembiasaan", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+                        AsyncImage(model = pemb.selfieUrl, contentDescription = stringResource(R.string.cd_selfie_pembiasaan), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
                         Spacer(Modifier.height(8.dp))
                     }
                     Text(stringResource(R.string.history_phase_time, pemb.time), style = MaterialTheme.typography.bodySmall)
@@ -317,26 +340,26 @@ private fun AttendanceDetailDialog(
                         TextButton(onClick = {
                             val uri = "geo:${pemb.lat},${pemb.lng}?q=${pemb.lat},${pemb.lng}".toUri()
                             try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
-                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Maps") }
+                        }) { Icon(Icons.Filled.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.presensi_history_open_maps)) }
                     }
                     Spacer(Modifier.height(16.dp))
                 }
                 record.checkout?.takeIf { it.checkedOut }?.let { co ->
-                    Text("Check-out: ${co.time}", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.history_checkout_at, co.time), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(12.dp))
                 }
                 day.presensi?.let { legacy ->
-                    Text("Bukti umum data lama", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.history_legacy_proof_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     val captureTime = schoolCaptureTime(legacy.timestamp).format(DateTimeFormatter.ofPattern("HH:mm"))
-                    Text("Jam capture (WIB): $captureTime", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.history_legacy_capture_time, captureTime), style = MaterialTheme.typography.bodySmall)
                     if (legacy.imageUrl.isNotBlank()) {
-                        AsyncImage(model = legacy.imageUrl, contentDescription = "Bukti foto umum data lama",
+                        AsyncImage(model = legacy.imageUrl, contentDescription = stringResource(R.string.cd_legacy_proof),
                             contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().height(220.dp))
                     }
-                    Text("Bukan bukti fase atau penyelesaian kanonis.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.history_legacy_capture_note), style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(12.dp))
                 }
-                Text("Tap di luar untuk tutup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.presensi_history_dismiss), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -355,18 +378,6 @@ private fun pembiasaanLabel(activity: String): String = when (activity) {
 private fun CenteredSpinner(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun CenteredMessage(message: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 

@@ -1,13 +1,31 @@
 package com.gynda.fridaystm.ui.screen
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gynda.fridaystm.ui.component.PlaceholderContent
+import com.gynda.fridaystm.R
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
+import com.gynda.fridaystm.ui.theme.Spacing
 import com.gynda.fridaystm.viewmodel.MainNavTarget
 import com.gynda.fridaystm.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
@@ -38,11 +56,7 @@ fun SplashScreen(
             delay(SPLASH_DELAY_MILLIS)
             onSplashFinished?.invoke()
         }
-        PlaceholderContent(
-            title = "Friday STM",
-            subtitle = "Disiplin Jumat pagi, satu ketukan.",
-            modifier = modifier,
-        )
+        SplashBrand(modifier)
         return
     }
 
@@ -68,11 +82,44 @@ fun SplashScreen(
         }
     }
 
-    PlaceholderContent(
-        title = "Friday STM",
-        subtitle = "Disiplin Jumat pagi, satu ketukan.",
-        modifier = modifier,
-    )
+    SplashBrand(modifier)
+}
+
+/** Splash: monogram forest-green + nama sekolah, tanpa aset jaringan. */
+@Composable
+private fun SplashBrand(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(Spacing.s24),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_friday_logo),
+                contentDescription = stringResource(R.string.redesign_brand),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(96.dp),
+            )
+            Spacer(Modifier.height(Spacing.s16))
+            Text(
+                text = stringResource(R.string.redesign_brand),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(Spacing.s8))
+            Text(
+                text = stringResource(R.string.splash_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
 }
 
 private const val SPLASH_DELAY_MILLIS = 1_200L

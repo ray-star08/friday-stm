@@ -256,7 +256,12 @@ class PresensiCameraViewModelTest {
         val vm = vm()
         vm.onPhotoCaptured(BitmapCapturedPhoto(bitmap()))
         advanceUntilIdle()
-        assertEquals(PresensiCameraUiState.Error("commit failed"), vm.uiState.value)
+        val state = vm.uiState.value
+        assertTrue(state is PresensiCameraUiState.Error)
+        assertFalse(
+            "raw infrastructure text must not reach the student",
+            (state as PresensiCameraUiState.Error).message.contains("commit failed"),
+        )
     }
 
     @Test fun `confirmed remote write displays success`() = runTest {

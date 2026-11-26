@@ -3,11 +3,12 @@ package com.gynda.fridaystm.data.repository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.gynda.fridaystm.data.model.RotationSchedule
 import com.gynda.fridaystm.util.FirestoreCollections
-import com.gynda.fridaystm.util.FirestoreDocIds
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Reads the read-only `rotations` reference collection — the **optional** weekly
@@ -40,15 +41,18 @@ interface RotationRepository {
 }
 
 /** Firestore-backed [RotationRepository]. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FirestoreRotationRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) : RotationRepository {
 
     override fun observeActiveSchedule(weekId: String): Flow<RotationSchedule?> =
-        combine(
-            observeDocument(weekId),
-            observeDocument(FirestoreDocIds.ROTATION_FALLBACK),
-        ) { forThisWeek, fallback -> forThisWeek ?: fallback }
+        observeDocument(weekId).flatMapLatest { weekly ->
+            // `rotations/{weekId}` wins; otherwise fall back to the standing
+            // `rotations/default_schedule` (e.g. a pinned holiday mapping);
+            // otherwise null → the caller uses the pure cyclic formula.
+            if (weekly != null) flowOf(weekly) else observeDocument(DEFAULT_SCHEDULE_ID)
+        }
 
     /**
      * One rotation document as a stream, `null` when it does not exist **or the
@@ -69,5 +73,10 @@ class FirestoreRotationRepository(
                 )
             }
         awaitClose { registration.remove() }
+    }
+
+    companion object {
+        /** Standing fallback document id (see the interface KDoc). */
+        const val DEFAULT_SCHEDULE_ID = "default_schedule"
     }
 }

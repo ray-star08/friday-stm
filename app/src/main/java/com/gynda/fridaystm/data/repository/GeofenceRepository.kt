@@ -32,7 +32,11 @@ class FirestoreGeofenceRepository(
         val registration = firestore.collection(FirestoreCollections.GEOFENCES)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    // Swallowed deliberately (mirrors RotationRepository): a
+                    // reference-data read failure must not blank the whole Home
+                    // screen — check-out needs no fence at all, and check-in
+                    // degrades to "locating" until the collection loads.
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
                 trySend(snapshot?.toObjects(Geofence::class.java).orEmpty())

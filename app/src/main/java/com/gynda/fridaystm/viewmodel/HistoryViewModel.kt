@@ -13,6 +13,7 @@ import com.gynda.fridaystm.data.repository.AuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAttendanceReadRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -55,7 +56,10 @@ class HistoryViewModel(
     attendanceRepository: AttendanceReadRepository,
 ) : ViewModel() {
 
-    val uiState: StateFlow<HistoryUiState> = authRepository.observeAuthState()
+    private val reload = MutableStateFlow(0)
+
+    val uiState: StateFlow<HistoryUiState> = reload
+        .flatMapLatest { authRepository.observeAuthState() }
         .distinctUntilChanged()
         .flatMapLatest { uid ->
             flow<HistoryUiState> {
@@ -72,6 +76,11 @@ class HistoryViewModel(
             started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
             initialValue = HistoryUiState.Loading,
         )
+
+    /** Muat ulang stream — dipakai tombol retry pada error state. */
+    fun retry() {
+        reload.value += 1
+    }
 
     companion object {
         private const val SUBSCRIPTION_TIMEOUT_MS = 5_000L

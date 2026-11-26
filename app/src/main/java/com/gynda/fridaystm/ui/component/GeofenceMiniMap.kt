@@ -2,6 +2,7 @@ package com.gynda.fridaystm.ui.component
 
 import android.graphics.Color
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,7 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.gynda.fridaystm.R
 import org.osmdroid.util.GeoPoint
@@ -65,8 +64,9 @@ import kotlin.math.roundToInt
  * - The osmdroid user-agent is applied synchronously before the first tile
  *   request ([ensureOsmdroidConfigured]); previously it was set in an async
  *   effect after the tiles had already 403'd, leaving a permanent grey grid.
- * - Tile source only switches when the theme actually flips (no flicker), and
- *   dark mode uses real [OsmDark] tiles instead of the harsh invert matrix.
+ * - Tile theme only switches when the theme actually flips (no flicker), via
+ *   [applyFridayTheme]: HOT tiles + [OsmDarkColorFilter] in dark mode (the
+ *   hosted CARTO dark basemap is not used — it now requires an API key).
  * - GPS ticks only invalidate when the fix moved > [MOVE_THRESHOLD_M], so
  *   panning no longer jitters every second.
  *
@@ -75,7 +75,9 @@ import kotlin.math.roundToInt
  * @param userLat/[userLng] live device position; `null` hides the marker.
  * @param recenterKey change this value (e.g. a click counter) to animate the
  *   camera back to the user's position on demand.
- * @param isInside live geofence state for the status pill overlay.
+ * @param isInside live geofence state; while the student is inside, the map's
+ *   status pill hides (the hero card above already states it) and only the ring
+ *   + dot carry the message.
  * @param distanceMeters live distance for the status pill overlay.
  * @param targetLabel fence label for the status pill overlay.
  */
@@ -123,9 +125,10 @@ fun GeofenceMiniMap(
     var lastZoom by remember { mutableStateOf(Double.NaN) }
     var appliedDark by remember { mutableStateOf<Boolean?>(null) }
 
+    // Pill guidance: only shown while locating or while outside the fence (see
+    // the hide condition below). The "inside" state lives in the hero card.
     val pillText = when {
         userLat == null || userLng == null -> stringResource(R.string.geofence_locating)
-        isInside -> stringResource(R.string.geofence_inside, targetLabel.orEmpty())
         distanceMeters != null ->
             stringResource(R.string.geofence_distance, distanceMeters.roundToInt(), targetLabel.orEmpty())
         else -> stringResource(R.string.geofence_locating)
@@ -147,22 +150,55 @@ fun GeofenceMiniMap(
                     val mapCtx = ctx.applicationContext ?: ctx
                     MapView(mapCtx).apply {
                         applyFridayDefaults()
-                        setTileSource(defaultTileSource(isDark))
+                        applyFridayTheme(isDark)
                         setBackgroundColor(surfaceColor.toArgb())
                         controller.setZoom(zoomForRadius(radiusMeter))
                         controller.setCenter(GeoPoint(centerLat, centerLng))
-                        // Prevent parent verticalScroll from stealing map pan gestures.
+                        // Claim the gesture from the parent verticalScroll only for
+                        // horizontal drags or pinch-zoom (multi-touch); a vertical
+                        // single-finger drag scrolls the page AND is swallowed so
+                        // osmdroid can't pan the camera behind the scroll.
+                        val touchSlop = ViewConfiguration.get(mapCtx).scaledTouchSlop
+                        var downX = 0f
+                        var downY = 0f
+                        var horizontalDrag = false
+                        var verticalDrag = false
                         setOnTouchListener { v, event ->
+                            var consume = false
                             when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN,
-                                MotionEvent.ACTION_MOVE -> v.parent?.requestDisallowInterceptTouchEvent(true)
+                                MotionEvent.ACTION_DOWN -> {
+                                    downX = event.x
+                                    downY = event.y
+                                    horizontalDrag = false
+                                    verticalDrag = false
+                                }
+                                MotionEvent.ACTION_MOVE -> {
+                                    if (!horizontalDrag && !verticalDrag) {
+                                        val dx = abs(event.x - downX)
+                                        val dy = abs(event.y - downY)
+                                        when {
+                                            event.pointerCount > 1 || dx > dy + touchSlop -> {
+                                                horizontalDrag = true
+                                                v.parent?.requestDisallowInterceptTouchEvent(true)
+                                            }
+                                            dy > dx + touchSlop -> verticalDrag = true
+                                        }
+                                    }
+                                    consume = verticalDrag
+                                }
                                 MotionEvent.ACTION_UP -> {
+                                    horizontalDrag = false
+                                    verticalDrag = false
                                     v.parent?.requestDisallowInterceptTouchEvent(false)
                                     v.performClick()
                                 }
-                                MotionEvent.ACTION_CANCEL -> v.parent?.requestDisallowInterceptTouchEvent(false)
+                                MotionEvent.ACTION_CANCEL -> {
+                                    horizontalDrag = false
+                                    verticalDrag = false
+                                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
                             }
-                            false
+                            consume
                         }
                         val center = GeoPoint(centerLat, centerLng)
                         val fence = Polygon(this).apply {
@@ -179,6 +215,8 @@ fun GeofenceMiniMap(
                         val userMarker = Marker(this).apply {
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                             icon = dot
+                            // Swallow clicks: no default info-window balloon.
+                            setOnMarkerClickListener { _, _ -> true }
                         }
                         tag = MapHolder(
                             fence = fence,
@@ -193,10 +231,10 @@ fun GeofenceMiniMap(
                     }
                 },
                 update = { map ->
-                    // Theme switch: swap tile source once, never per-frame (no flicker).
+                    // Theme switch: swap tile filter once, never per-frame (no flicker).
                     if (appliedDark != isDark) {
                         try {
-                            map.setTileSource(defaultTileSource(isDark))
+                            map.applyFridayTheme(isDark)
                         } catch (_: Exception) {
                             // Keep current tiles rather than crashing.
                         }
@@ -219,6 +257,8 @@ fun GeofenceMiniMap(
                         }
                         val userMarker = Marker(map).apply {
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            // Swallow clicks: no default info-window balloon.
+                            setOnMarkerClickListener { _, _ -> true }
                         }
                         MapHolder(fence, halo, userMarker, center, radiusMeter, null).also {
                             map.tag = it
@@ -318,46 +358,46 @@ fun GeofenceMiniMap(
                 },
             )
 
-            // Status pill: glanceable inside/outside state drawn over the map.
-            Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-                contentColor = if (isInside && userLat != null) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                shape = RoundedCornerShape(12.dp),
-                shadowElevation = 4.dp,
-                border = BorderStroke(1.dp, outlineVariantColor.copy(alpha = 0.6f)),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(10.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            // Status pill: guidance drawn over the map. Hidden while inside — the
+            // hero card above already states "Di dalam <fence>" and the green ring
+            // + dot are self-evident, so a second sentence would just repeat it.
+            if (!isInside || userLat == null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    shadowElevation = 4.dp,
+                    border = BorderStroke(1.dp, outlineVariantColor.copy(alpha = 0.6f)),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp),
                 ) {
-                    if (userLat == null || userLng == null) {
-                        CircularProgressIndicator(
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (isInside) Icons.Filled.CheckCircle else Icons.Filled.LocationOn,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    ) {
+                        if (userLat == null || userLng == null) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(text = pillText, style = MaterialTheme.typography.labelSmall)
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text(text = pillText, style = MaterialTheme.typography.labelSmall)
                 }
             }
 
             // Licence attribution, always visible.
             Text(
                 text = MAP_ATTRIBUTION,
-                fontSize = 10.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.BottomStart)

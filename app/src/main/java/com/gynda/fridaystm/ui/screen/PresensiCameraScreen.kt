@@ -24,12 +24,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -71,6 +73,7 @@ import com.gynda.fridaystm.util.SystemTimeProvider
 import com.gynda.fridaystm.util.WorkManagerPresensiSyncScheduler
 import com.gynda.fridaystm.util.MAX_RADIUS_METERS
 import com.gynda.fridaystm.util.calculateDistanceToSchool
+import com.gynda.fridaystm.ui.theme.Spacing
 import com.gynda.fridaystm.viewmodel.PresensiCameraUiState
 import com.gynda.fridaystm.viewmodel.PresensiCameraViewModel
 import kotlinx.coroutines.delay
@@ -120,6 +123,7 @@ fun PresensiCameraScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val retryLabel = stringResource(R.string.presensi_camera_retry)
 
     // --- Permission handling for CAMERA + FINE_LOCATION ---
     var hasCamera by remember {
@@ -161,7 +165,7 @@ fun PresensiCameraScreen(
             is PresensiCameraUiState.Error -> {
                 val result = snackbarHostState.showSnackbar(
                     message = s.message,
-                    actionLabel = "Coba Lagi"
+                    actionLabel = retryLabel
                 )
                 if (result == SnackbarResult.ActionPerformed) {
                     viewModel.reset()
@@ -177,13 +181,13 @@ fun PresensiCameraScreen(
                 viewModel.reset()
                 onSuccessNavigateBack()
             },
-            title = { Text("Presensi Berhasil") },
-            text = { Text("Foto presensi berhasil diunggah dan dicatat.") },
+            title = { Text(stringResource(R.string.presensi_camera_success_title)) },
+            text = { Text(stringResource(R.string.presensi_camera_success_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.reset()
                     onSuccessNavigateBack()
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.izin_date_ok)) }
             }
         )
     }
@@ -200,7 +204,7 @@ fun PresensiCameraScreen(
                 TextButton(onClick = {
                     viewModel.reset()
                     onSuccessNavigateBack()
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.izin_date_ok)) }
             }
         )
     }
@@ -229,6 +233,22 @@ fun PresensiCameraScreen(
             )
         }
 
+        // Explicit exit: the preview is full-bleed, so system back alone is not
+        // discoverable — every screen keeps a visible way out.
+        if (hasAllPermissions && uiState !is PresensiCameraUiState.Loading) {
+            FilledTonalIconButton(
+                onClick = onSuccessNavigateBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(Spacing.s16),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.presensi_camera_close),
+                )
+            }
+        }
+
         // Loading overlay
         if (uiState is PresensiCameraUiState.Loading) {
             Box(
@@ -245,7 +265,7 @@ fun PresensiCameraScreen(
                     CircularProgressIndicator(color = Color.White)
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "Memproses Watermark & Mengunggah Presensi...",
+                        text = stringResource(R.string.presensi_camera_processing),
                         color = Color.White,
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
@@ -274,28 +294,28 @@ private fun PermissionFallbackContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Izin Diperlukan",
+            text = stringResource(R.string.presensi_camera_permission_title),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(12.dp))
         val missing = buildList {
-            if (!hasCamera) add("Kamera (untuk selfie presensi)")
-            if (!hasLocation) add("Lokasi Presisi (untuk watermark & validasi)")
+            if (!hasCamera) add(stringResource(R.string.presensi_camera_permission_camera))
+            if (!hasLocation) add(stringResource(R.string.presensi_camera_permission_location))
         }.joinToString(", ")
         Text(
-            text = "Aplikasi membutuhkan izin $missing agar presensi dapat dicatat.",
+            text = stringResource(R.string.presensi_camera_permission_body, missing),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(20.dp))
         Button(onClick = onRequest, modifier = Modifier.fillMaxWidth()) {
-            Text("Izinkan Akses")
+            Text(stringResource(R.string.camera_permission_grant))
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Kamera depan akan digunakan untuk selfie, lokasi untuk watermark.",
+            text = stringResource(R.string.presensi_camera_permission_hint),
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -313,6 +333,8 @@ private fun CameraPreviewWithShutter(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isLoading = uiState is PresensiCameraUiState.Loading
+    val frontUnavailableMessage = stringResource(R.string.presensi_camera_front_unavailable)
+    val captureFailedMessage = stringResource(R.string.presensi_camera_capture_failed)
 
     // --- Real-time distance chip ---
     var distance by remember { mutableStateOf<Float?>(null) }
@@ -329,10 +351,15 @@ private fun CameraPreviewWithShutter(
             delay(3000)
         }
     }
-    val shutterEnabled = !isLoading && (isWithin != false)
+    // Fail-closed: the shutter needs a fresh inside-the-fence fix. `null`
+    // (no fix yet) no longer passes — the authoritative re-check in
+    // PresensiCameraViewModel is the final gate, this just prevents a
+    // doomed tap before the chip has a reading.
+    val shutterEnabled = !isLoading && isWithin == true
 
     // ImageCapture remembers across recompositions
     val imageCapture = remember { ImageCapture.Builder().build() }
+    val cameraProvider = remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
     Box(modifier = modifier) {
         AndroidView(
@@ -345,6 +372,7 @@ private fun CameraPreviewWithShutter(
                 providerFuture.addListener({
                     try {
                         val provider = providerFuture.get()
+                        cameraProvider.value = provider
                         val preview = Preview.Builder().build().also {
                             it.surfaceProvider = previewView.surfaceProvider
                         }
@@ -352,27 +380,35 @@ private fun CameraPreviewWithShutter(
                         provider.unbindAll()
                         provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
                     } catch (_: Exception) {
-                        onCameraError("Kamera depan tidak tersedia. Periksa izin kamera.")
+                        onCameraError(frontUnavailableMessage)
                     }
                 }, ContextCompat.getMainExecutor(ctx))
                 previewView
-            }
+            },
+            onRelease = { cameraProvider.value?.unbindAll() }
         )
 
         // Distance chip top center
         distance?.let { d ->
             val within = isWithin == true
             Surface(
-                color = if (within) Color(0xFF2E7D32).copy(alpha = 0.85f) else Color(0xFFC62828).copy(alpha = 0.85f),
-                contentColor = Color.White,
+                color = if (within) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                } else {
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
+                },
+                contentColor = if (within) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 16.dp)
             ) {
                 Text(
-                    text = if (within) "Jarak: ${d.toInt()}m - Dalam Radius"
-                    else "Jarak: ${d.toInt()}m - Di Luar Area",
+                    text = if (within) {
+                        stringResource(R.string.presensi_camera_distance_inside, d.toInt())
+                    } else {
+                        stringResource(R.string.presensi_camera_distance_outside, d.toInt())
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
@@ -405,7 +441,7 @@ private fun CameraPreviewWithShutter(
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
-                                    onCameraError("Gagal mengambil foto. Coba lagi.")
+                                    onCameraError(captureFailedMessage)
                                 }
                             }
                         )
@@ -415,7 +451,7 @@ private fun CameraPreviewWithShutter(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Face,
-                        contentDescription = "Ambil Foto Presensi",
+                        contentDescription = stringResource(R.string.cd_presensi_capture),
                         tint = Color.Black,
                         modifier = Modifier.size(36.dp)
                     )

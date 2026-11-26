@@ -45,19 +45,14 @@ class DebugTimeProvider(
     }
 
     /**
-     * Advance the simulated date by [weeks] ISO weeks, preserving the time-of-day
-     * and the Friday invariant. Used to demo the 3-week rotation cycle
-     * (Talim -> Larkam -> Senam) without touching Firestore.
+     * Advance the simulated date by [weeks] ISO weeks, guaranteeing a Friday
+     * and snapping to 07:00 (Pembiasaan phase) so the new week's rotation activity
+     * card is immediately visible and testable.
      */
     fun advanceWeek(weeks: Long = 1) {
-        _simulatedTime.value = _simulatedTime.value.plusWeeks(weeks)
-        // Guarantee still a Friday after the jump (DST-safe: LocalDateTime has no zone).
-        val dow = _simulatedTime.value.dayOfWeek
-        if (dow != DayOfWeek.FRIDAY) {
-            val friday = _simulatedTime.value.toLocalDate()
-                .with(TemporalAdjusters.next(DayOfWeek.FRIDAY))
-            _simulatedTime.value = LocalDateTime.of(friday, _simulatedTime.value.toLocalTime())
-        }
+        val advanced = _simulatedTime.value.plusWeeks(weeks)
+        val friday = advanced.toLocalDate().with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY))
+        _simulatedTime.value = LocalDateTime.of(friday, LocalTime.of(7, 0))
     }
 
     /** Return to the real device clock — the next [now] reads from [SystemTimeProvider]. */

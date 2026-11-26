@@ -88,9 +88,13 @@ fun CameraCaptureScreen(
         if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    // Surface the resulting URL exactly once.
+    // Surface the resulting URL exactly once — the consumed flag survives
+    // rotation/process restore, so a recomposed Uploaded never double-writes.
     LaunchedEffect(state) {
-        (state as? CameraUiState.Uploaded)?.let { onSelfieReady(it.secureUrl) }
+        (state as? CameraUiState.Uploaded)?.takeIf { !it.consumed }?.let {
+            viewModel.onUploadConsumed()
+            onSelfieReady(it.secureUrl)
+        }
     }
 
     when {
@@ -130,6 +134,9 @@ private fun CaptureContent(
     val scope = rememberCoroutineScope()
     // Capture handle provided by CameraPreview once the camera is bound.
     var capture by remember { mutableStateOf<(suspend () -> Result<Bitmap>)?>(null) }
+    // Bind failure (no camera / revoked permission) renders inline instead of
+    // leaving a permanently disabled shutter on a black preview.
+    var previewError by remember { mutableStateOf<String?>(null) }
 
     Column(modifier.fillMaxSize().padding(16.dp)) {
         Text(
@@ -142,6 +149,7 @@ private fun CaptureContent(
             when (state) {
                 CameraUiState.Capturing -> CameraPreview(
                     onCaptureReady = { capture = it },
+                    onError = { previewError = it },
                     modifier = Modifier.fillMaxSize(),
                 )
 
@@ -156,6 +164,17 @@ private fun CaptureContent(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        previewError?.let { message ->
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
 
         when (state) {
             CameraUiState.Capturing -> Button(

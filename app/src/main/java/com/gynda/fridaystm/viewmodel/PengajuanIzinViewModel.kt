@@ -135,11 +135,18 @@ class PengajuanIzinViewModel(
             _uiState.value = try {
                 val uid = authRepository.currentUid
                     ?: throw IllegalStateException("Sesi berakhir. Silakan login ulang.")
-                val user = authRepository.getUserProfile(uid).getOrElse { throw it }
+                val user = authRepository.getUserProfile(uid).getOrElse {
+                    // Raw Firestore text (no profile / denied / offline) is not user-facing.
+                    throw IllegalStateException("Sesi berakhir. Silakan login ulang.")
+                }
                 val bytes = proofBytes
                     ?: throw IllegalStateException(MSG_PROOF_REQUIRED)
 
-                val proofUrl = proofUploader.uploadProof(uid, bytes).getOrElse { throw it }
+                // Upload + submit failures carry infrastructure text (Cloudinary HTTP,
+                // config, Firestore codes) — collapse to one honest message.
+                val proofUrl = proofUploader.uploadProof(uid, bytes).getOrElse {
+                    throw IllegalStateException(MSG_SUBMIT_FAILED)
+                }
 
                 val record = IzinRecord(
                     userId = uid,
@@ -152,10 +159,14 @@ class PengajuanIzinViewModel(
                     proofUrl = proofUrl,
                     status = IzinStatus.PENDING,
                 )
-                izinRepository.submitIzin(record).getOrElse { throw it }
+                izinRepository.submitIzin(record).getOrElse {
+                    throw IllegalStateException(MSG_SUBMIT_FAILED)
+                }
                 PengajuanIzinUiState.Success
-            } catch (e: Exception) {
+            } catch (e: IllegalStateException) {
                 PengajuanIzinUiState.Error(e.message ?: MSG_SUBMIT_FAILED)
+            } catch (_: Exception) {
+                PengajuanIzinUiState.Error(MSG_SUBMIT_FAILED)
             }
         }
     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,12 +33,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gynda.fridaystm.R
 import com.gynda.fridaystm.ui.component.BigActionButton
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
+import com.gynda.fridaystm.service.FcmTokenSync
 import com.gynda.fridaystm.viewmodel.LoginUiState
 import com.gynda.fridaystm.viewmodel.LoginViewModel
 import com.gynda.fridaystm.viewmodel.MainNavTarget
@@ -66,6 +69,10 @@ fun LoginScreen(
 
     LaunchedEffect(state.success) {
         if (!state.success) return@LaunchedEffect
+        // Fresh installs mint the FCM token before any login; onNewToken drops
+        // it when signed out. Re-upload here so reminders actually reach the
+        // device. Best-effort — never blocks navigation.
+        launch { runCatching { FcmTokenSync.uploadForCurrentUser() } }
         // Role-aware navigation: use MainViewModel when available, else fallback.
         if (mainViewModel != null && (onLoginSuccessStudent != null || onLoginSuccessTeacher != null)) {
             scope.launch {
@@ -77,8 +84,7 @@ fun LoginScreen(
                 }
             }
         } else {
-            onLoginSuccess?.invoke()
-            onLoginSuccessStudent?.invoke()
+            (onLoginSuccess ?: onLoginSuccessStudent)?.invoke()
         }
     }
 
@@ -116,7 +122,7 @@ fun LoginContent(
 ) {
     Box(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding(),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.TopCenter,
     ) {
         Column(
             modifier = Modifier.widthIn(max = ComponentSize.formMaxWidth).fillMaxWidth()
@@ -124,11 +130,12 @@ fun LoginContent(
             verticalArrangement = Arrangement.spacedBy(Spacing.s24),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s12)) {
-                Surface(color = MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.medium) {
-                    Box(Modifier.size(ComponentSize.brandMark), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.redesign_brand_mark), style = MaterialTheme.typography.headlineSmall)
-                    }
-                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_friday_logo),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(ComponentSize.brandMark),
+                )
                 Column {
                     Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.titleSmall)
                     Text(stringResource(R.string.redesign_school), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

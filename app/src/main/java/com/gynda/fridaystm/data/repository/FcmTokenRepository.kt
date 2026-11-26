@@ -1,5 +1,6 @@
 package com.gynda.fridaystm.data.repository
 
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.gynda.fridaystm.util.FirestoreCollections
@@ -16,6 +17,9 @@ import kotlinx.coroutines.tasks.await
 interface FcmTokenRepository {
     /** Updates `fcmToken` for [userId]. Fails if [token] is blank. */
     suspend fun updateToken(userId: String, token: String): Result<Unit>
+
+    /** Removes `fcmToken` from [userId]'s profile (logout / account switch). */
+    suspend fun deleteToken(userId: String): Result<Unit>
 }
 
 object FcmFields {
@@ -32,6 +36,15 @@ class FirebaseFcmTokenRepository(
         firestoreProvider().collection(FirestoreCollections.USERS)
             .document(userId)
             .set(mapOf(FcmFields.FCM_TOKEN to token), SetOptions.merge())
+            .await()
+        Unit
+    }
+
+    override suspend fun deleteToken(userId: String): Result<Unit> = runCatching {
+        require(userId.isNotBlank()) { "userId must not be blank" }
+        firestoreProvider().collection(FirestoreCollections.USERS)
+            .document(userId)
+            .update(FcmFields.FCM_TOKEN, FieldValue.delete())
             .await()
         Unit
     }

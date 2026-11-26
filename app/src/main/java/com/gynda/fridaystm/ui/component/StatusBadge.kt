@@ -7,7 +7,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gynda.fridaystm.R
 import com.gynda.fridaystm.data.model.StudentPresenceStatus
 import com.gynda.fridaystm.util.IzinStatus
 
@@ -25,19 +27,23 @@ fun StudentStatusBadge(
 ) {
     val (label, container, content) = when (status) {
         StudentPresenceStatus.HADIR -> {
-            val t = if (!time.isNullOrBlank()) "Lengkap - $time WIB" else "Lengkap"
+            val t = if (!time.isNullOrBlank()) {
+                stringResource(R.string.student_badge_complete_time, time)
+            } else {
+                stringResource(R.string.history_day_complete)
+            }
             Triple(t, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
         }
-        StudentPresenceStatus.PARTIAL -> Triple("Belum checkout", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-        StudentPresenceStatus.LEGACY -> Triple("Selfie lama", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-        StudentPresenceStatus.NEEDS_REVIEW -> Triple("Perlu ditinjau", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        StudentPresenceStatus.PARTIAL -> Triple(stringResource(R.string.student_badge_pending_checkout), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        StudentPresenceStatus.LEGACY -> Triple(stringResource(R.string.student_badge_legacy_selfie), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        StudentPresenceStatus.NEEDS_REVIEW -> Triple(stringResource(R.string.history_day_needs_review), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
         StudentPresenceStatus.IZIN -> Triple(
-            "Izin / Sakit",
+            stringResource(R.string.student_badge_izin),
             MaterialTheme.colorScheme.tertiaryContainer,
             MaterialTheme.colorScheme.onTertiaryContainer,
         )
         StudentPresenceStatus.BELUM -> Triple(
-            "Belum Absen",
+            stringResource(R.string.student_badge_absent),
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer,
         )
@@ -51,9 +57,9 @@ fun IzinStatusBadge(
     modifier: Modifier = Modifier,
 ) {
     val (label, container, content) = when (statusWire) {
-        IzinStatus.APPROVED -> Triple("Disetujui", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
-        IzinStatus.REJECTED -> Triple("Ditolak", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-        else -> Triple("Menunggu", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        IzinStatus.APPROVED -> Triple(stringResource(R.string.izin_status_approved), MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+        IzinStatus.REJECTED -> Triple(stringResource(R.string.izin_status_rejected), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        else -> Triple(stringResource(R.string.izin_status_pending), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
     }
     Badge(label = label, containerColor = container, contentColor = content, modifier = modifier)
 }

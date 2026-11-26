@@ -3,6 +3,8 @@ package com.gynda.fridaystm.ui.component
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
@@ -10,7 +12,6 @@ import androidx.annotation.ColorInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.views.MapView
 
@@ -64,10 +65,11 @@ internal suspend fun configureOsmdroid(context: Context) = withContext(Dispatche
     ensureOsmdroidConfigured(context)
 }
 
-/** Shared defaults for every FridaySTM map: crisp tiles on xxhdpi, pinch-zoom. */
+/** Shared defaults for every FridaySTM map: crisp tiles, pinch-zoom, no built-in +/- buttons. */
 fun MapView.applyFridayDefaults() {
     setTilesScaledToDpi(true)
     setMultiTouchControls(true)
+    setBuiltInZoomControls(false)
 }
 
 /** Zoom level that frames a geofence of [radiusMeter] with margin. */
@@ -82,12 +84,14 @@ fun zoomForRadius(radiusMeter: Int): Double = when {
 }
 
 /**
- * OpenStreetMap Standard TileSource: 100% free, no API key required.
- */
-val OsmStandard = TileSourceFactory.MAPNIK
-
-/**
- * Humanitarian OpenStreetMap TileSource: modern pastel light style, 100% free.
+ * Humanitarian OpenStreetMap TileSource: modern pastel light style, 100% free,
+ * no API key. The **only** raster source FridaySTM ships: the light theme uses
+ * it directly, the dark theme derives its look locally via [OsmDarkColorFilter].
+ *
+ * Why no hosted dark basemap: the previous CARTO `basemaps.cartocdn.com` source
+ * now answers every tile with an "API KEY REQUIRED" watermark (verified
+ * 2026-11), and the keyless alternatives (Esri World Dark Gray Canvas) serve
+ * "Map data not yet available" at the z17+ zooms the mini-map uses.
  */
 val OsmHot = XYTileSource(
     "OsmHot",
@@ -101,56 +105,36 @@ val OsmHot = XYTileSource(
 )
 
 /**
- * CARTO dark-matter tiles for dark theme. Using real dark tiles instead of an
- * invert [android.graphics.ColorMatrix] filter keeps labels legible and avoids
- * the washed-out grey the matrix produced on HOT tiles.
+ * Dark theme tile filter: the standard `invert(1) hue-rotate(180deg)` matrix,
+ * pre-multiplied into one ColorMatrix and verified against a real HOT tile
+ * (dark near-black land, legible light labels, warm main-road band).
  */
-val OsmDark = XYTileSource(
-    "CartoDark",
-    0, 19, 256, ".png",
-    arrayOf(
-        "https://a.basemaps.cartocdn.com/dark_all/",
-        "https://b.basemaps.cartocdn.com/dark_all/",
-        "https://c.basemaps.cartocdn.com/dark_all/"
-    ),
-    "© OpenStreetMap contributors © CARTO"
-)
-
-/** Tile source per theme: light → HOT pastel, dark → CARTO dark. */
-fun defaultTileSource(isDark: Boolean) = if (isDark) OsmDark else OsmHot
-
-/**
- * Esri World Imagery (Satellite) TileSource: free satellite imagery, no API key required.
- */
-val EsriSatellite = XYTileSource(
-    "EsriSatellite",
-    0, 19, 256, ".jpg",
-    arrayOf(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"
-    ),
-    "Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-)
-
-/**
- * Dark mode ColorMatrix filter for OpenStreetMap tiles.
- *
- * @deprecated Prefer [OsmDark] real dark tiles (see [defaultTileSource]).
- * Kept for back-compat only; new surfaces must not use it.
- */
-@Deprecated("Use OsmDark tiles instead of a color-matrix filter.")
-val OsmDarkColorFilter = android.graphics.ColorMatrixColorFilter(
-    android.graphics.ColorMatrix(
+val OsmDarkColorFilter = ColorMatrixColorFilter(
+    ColorMatrix(
         floatArrayOf(
-            -0.8f, 0.0f, 0.0f, 0.0f, 230.0f,
-            0.0f, -0.8f, 0.0f, 0.0f, 230.0f,
-            0.0f, 0.0f, -0.8f, 0.0f, 230.0f,
-            0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+            0.574f, -1.430f, -0.144f, 0f, 255f,
+            -0.426f, -0.430f, -0.144f, 0f, 255f,
+            -0.426f, -1.430f, 0.856f, 0f, 255f,
+            0f, 0f, 0f, 1f, 0f
         )
     )
 )
 
+/**
+ * Applies the shared FridaySTM map look: HOT tiles + the dark filter when
+ * [isDark]. Idempotent and cheap — safe to call on every recomposition; the
+ * tile source is only reassigned when it actually differs.
+ */
+fun MapView.applyFridayTheme(isDark: Boolean) {
+    if (tileProvider?.tileSource !== OsmHot) {
+        setTileSource(OsmHot)
+    }
+    overlayManager?.tilesOverlay?.setColorFilter(if (isDark) OsmDarkColorFilter else null)
+    invalidate()
+}
+
 /** Attribution line drawn on every map (OSM licence requirement). */
-const val MAP_ATTRIBUTION = "© OpenStreetMap · HOT / CARTO"
+const val MAP_ATTRIBUTION = "© OpenStreetMap · HOT"
 
 /**
  * Blue-dot "my location" icon: primary fill, white ring, soft halo.

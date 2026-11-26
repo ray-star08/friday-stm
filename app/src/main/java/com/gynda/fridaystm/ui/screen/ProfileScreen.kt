@@ -2,6 +2,7 @@ package com.gynda.fridaystm.ui.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.OutlinedButton
+import com.gynda.fridaystm.ui.component.ErrorState
 import com.gynda.fridaystm.ui.theme.ComponentSize
 import com.gynda.fridaystm.ui.theme.Spacing
 import androidx.compose.foundation.background
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,10 +49,12 @@ import coil3.compose.AsyncImage
 import com.gynda.fridaystm.R
 import com.gynda.fridaystm.data.model.ProfileStats
 import com.gynda.fridaystm.data.model.User
+import com.gynda.fridaystm.service.FcmTokenSync
 import com.gynda.fridaystm.ui.theme.FridaySTMTheme
 import com.gynda.fridaystm.viewmodel.ProfileViewModel
 import com.gynda.fridaystm.viewmodel.UserProfileUiState
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 /**
  * Profile — stateful holder (SKILL.md §4.1). Owns [ProfileViewModel], collects
@@ -66,6 +70,7 @@ fun ProfileScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val logoutEvent by viewModel.logoutEvent.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     // Event sekali-tampil → navigasi Login (backstack dikosongkan di NavHost).
     LaunchedEffect(logoutEvent) {
@@ -77,7 +82,15 @@ fun ProfileScreen(
 
     ProfileContent(
         state = state,
-        onLogoutConfirmed = viewModel::logout,
+        // Hapus token FCM dari akun lama SEBELUM sign-out, supaya push tidak
+        // bocor ke pemilik berikutnya di perangkat yang sama. Best-effort.
+        onLogoutConfirmed = {
+            scope.launch {
+                runCatching { FcmTokenSync.clearForCurrentUser() }
+                viewModel.logout()
+            }
+        },
+        onRetry = viewModel::retry,
         modifier = modifier,
     )
 }
@@ -87,6 +100,7 @@ fun ProfileScreen(
 fun ProfileContent(
     state: UserProfileUiState,
     onLogoutConfirmed: () -> Unit,
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showLogoutDialog by rememberSaveable { mutableStateOf(false) }
@@ -123,15 +137,10 @@ fun ProfileContent(
         }
 
         is UserProfileUiState.Error -> Box(
-            modifier.fillMaxSize().padding(24.dp),
+            modifier.fillMaxSize().padding(Spacing.s24),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = state.message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center,
-            )
+            ErrorState(message = state.message, onRetry = onRetry)
         }
 
         is UserProfileUiState.Success -> ProfileReady(
@@ -161,8 +170,6 @@ private fun ProfileReady(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Column {
-            Text(stringResource(R.string.redesign_brand), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(Spacing.s8))
             Text(stringResource(R.string.redesign_profile_heading), style = MaterialTheme.typography.headlineMedium)
         }
         // --- Header card: foto, nama, NISN, kelas ---

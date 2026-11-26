@@ -9,6 +9,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,17 +34,23 @@ import kotlin.coroutines.resumeWithException
  *
  * @param onCaptureReady invoked once the camera is bound; provides a `suspend`
  *   capture function the screen calls when the user taps the shutter.
+ * @param onError invoked with a human-readable message when binding fails
+ *   (no camera, revoked permission) so the screen can render an error instead
+ *   of a dead shutter button.
  */
 @Composable
 fun CameraPreview(
     onCaptureReady: (capture: suspend () -> Result<Bitmap>) -> Unit,
     modifier: Modifier = Modifier,
     lensFacing: Int = CameraSelector.LENS_FACING_FRONT,
+    onError: (message: String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val imageCapture = remember { ImageCapture.Builder().build() }
+    val cameraProvider = remember { mutableStateOf<ProcessCameraProvider?>(null) }
     val previewDescription = stringResource(R.string.cd_camera_preview)
+    val bindErrorMessage = stringResource(R.string.camera_preview_error)
 
     AndroidView(
         modifier = modifier.semantics { contentDescription = previewDescription },
@@ -53,19 +60,25 @@ fun CameraPreview(
             }
             val providerFuture = ProcessCameraProvider.getInstance(ctx)
             providerFuture.addListener({
-                val provider = providerFuture.get()
-                val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView.surfaceProvider
+                try {
+                    val provider = providerFuture.get()
+                    cameraProvider.value = provider
+                    val preview = Preview.Builder().build().also {
+                        it.surfaceProvider = previewView.surfaceProvider
+                    }
+                    val selector = CameraSelector.Builder()
+                        .requireLensFacing(lensFacing)
+                        .build()
+                    provider.unbindAll()
+                    provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+                    onCaptureReady { imageCapture.captureBitmap(ctx) }
+                } catch (_: Exception) {
+                    onError(bindErrorMessage)
                 }
-                val selector = CameraSelector.Builder()
-                    .requireLensFacing(lensFacing)
-                    .build()
-                provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
-                onCaptureReady { imageCapture.captureBitmap(ctx) }
             }, ContextCompat.getMainExecutor(ctx))
             previewView
         },
+        onRelease = { cameraProvider.value?.unbindAll() },
     )
 }
 

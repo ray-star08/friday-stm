@@ -54,6 +54,10 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
+
+/** Rounds a coordinate to ~1m (5 decimals) so GPS jitter collapses under `distinctUntilChanged`. */
+private fun Double.roundToMetre(): Double = (this * 100_000.0).roundToInt() / 100_000.0
 
 /**
  * Drives the Home screen: merges the time-based Friday phase, the signed-in
@@ -177,7 +181,12 @@ class HomeViewModel(
             emit(locationProvider.currentLocation().getOrNull())
             delay(LOCATION_POLL_MS)
         }
-    }.distinctUntilChanged()
+    }
+        // GPS jitter (≈1m) would otherwise defeat distinctUntilChanged and
+        // recompute the whole state every 5s. Rounding to ~1m keeps the gate
+        // precise (fences are ≥40m) while collapsing noise frames.
+        .map { fix -> fix?.copy(lat = fix.lat.roundToMetre(), lng = fix.lng.roundToMetre()) }
+        .distinctUntilChanged()
 
     /**
      * The screen state. The rotation is a pure function of grade + week, with an
@@ -215,30 +224,61 @@ class HomeViewModel(
 
     /**
      * The camera flow finished and produced a Cloudinary `secure_url`. Submit the
-     * check-in for whichever phase is currently active, stamping the last known
-     * fix and marking `valid` by the live geofence gate (inside && not mock).
+     * check-in for whichever phase is currently active.
      *
      * Called by the Home holder after `CameraCaptureScreen.onSelfieReady`.
+     *
+     * The fix is re-fetched fresh here (not just the cached [lastFix]): the
+     * camera flow takes minutes, long enough to walk out of the fence, and the
+     * polling [locationFlow] stops ~5s after Home leaves the composition. A mock
+     * fix fails closed; a missing fix surfaces an error instead of writing the
+     * `0.0, 0.0` "Null Island" coordinates.
      */
     fun onSelfieReady(selfieUrl: String) {
         val ready = uiState.value as? HomeUiState.Ready ?: return
-        val fix = lastFix
-        val lat = fix?.lat ?: 0.0
-        val lng = fix?.lng ?: 0.0
-        val valid = ready.isInsideGeofence
-        when (ready.action) {
-            is HomeAction.CheckInPembiasaan -> onSubmitPembiasaan(lat, lng, selfieUrl, valid)
-            else -> Unit // no active check-in to attach the selfie to
+        if (ready.phase != FridayPhase.PEMBIASAAN) return
+        if (ready.action !is HomeAction.CheckInPembiasaan) return
+        if (!ready.user.roleEnum.canAttendPembiasaan) return
+        viewModelScope.launch {
+            // State may have gone stale while the camera was open; re-read it.
+            val current = uiState.value as? HomeUiState.Ready ?: return@launch
+            if (current.phase != FridayPhase.PEMBIASAAN ||
+                current.action !is HomeAction.CheckInPembiasaan
+            ) return@launch
+            val fresh = locationProvider.currentLocation().getOrNull()
+            if (fresh != null && fresh.isMock) {
+                _submitStatus.value = SubmitStatus.Error(R.string.location_mock_detected)
+                return@launch
+            }
+            val fix = fresh ?: lastFix
+            if (fix == null) {
+                _submitStatus.value = SubmitStatus.Error(R.string.submit_error_generic)
+                return@launch
+            }
+            lastFix = fix
+            val target = current.geofenceTarget
+            val valid = target != null &&
+                isInsideGeofence(fix.lat, fix.lng, target.lat, target.lng, target.radiusMeter)
+            onSubmitPembiasaan(fix.lat, fix.lng, selfieUrl, valid)
         }
     }
 
 
     /** Fase 2 check-in for the student's rotated activity. Location/selfie (`lat`,
      * `lng`, `selfieUrl`, `valid`) come from the geofence + CameraX flow and are
-     * passed in here; the ViewModel owns the display time and delegates persistence. */
+     * passed in here; the ViewModel owns the display time and delegates persistence.
+     *
+     * Guarded like [onCheckOut]: only during PEMBIASAAN, only for the rotated
+     * check-in action, only for attending roles. The UI disables the button
+     * outside the fence; this guard keeps direct callers honest too. */
     fun onSubmitPembiasaan(lat: Double, lng: Double, selfieUrl: String, valid: Boolean) {
         val ready = uiState.value as? HomeUiState.Ready ?: return
-        val activity = ready.activeActivity ?: return
+        if (ready.phase != FridayPhase.PEMBIASAAN) return
+        // Strict: only the live check-in action may write. A second call after
+        // the record lands (action → PembiasaanDone) is dropped, so a double
+        // selfie callback can never write twice.
+        val activity = (ready.action as? HomeAction.CheckInPembiasaan)?.activity ?: return
+        if (!ready.user.roleEnum.canAttendPembiasaan) return
         submit {
             attendanceRepository.submitPembiasaan(
                 uid = ready.user.uid,

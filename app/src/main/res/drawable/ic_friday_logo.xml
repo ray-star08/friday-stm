@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Clock ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M24,5a19,19 0 1,0 0,38a19,19 0 1,0 0,-38"
+        android:strokeColor="#0F3D2E"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+
+    <!-- Precision monogram F -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M18,15 L18,33 M18,15 L28,15 M18,23 L26,23"
+        android:strokeColor="#0F3D2E"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3.4" />
+
+    <!-- Check mark merging into the ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M25,29 L29,33 L36,23"
+        android:strokeColor="#0F3D2E"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3.4" />
+</vector>

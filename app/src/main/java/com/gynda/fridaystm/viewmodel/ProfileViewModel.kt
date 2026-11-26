@@ -62,7 +62,10 @@ class ProfileViewModel(
     private val statsRepository: ProfileStatsRepository,
 ) : ViewModel() {
 
-    val uiState: StateFlow<UserProfileUiState> = authRepository.observeAuthState()
+    private val reload = MutableStateFlow(0)
+
+    val uiState: StateFlow<UserProfileUiState> = reload
+        .flatMapLatest { authRepository.observeAuthState() }
         .distinctUntilChanged()
         .flatMapLatest { uid ->
             profileFlow(uid).catch { emit(UserProfileUiState.Error(MSG_LOAD_FAILED)) }
@@ -84,6 +87,11 @@ class ProfileViewModel(
     fun logout() {
         authRepository.signOut()
         _logoutEvent.value = true
+    }
+
+    /** Muat ulang profil — dipakai tombol retry pada error state. */
+    fun retry() {
+        reload.value += 1
     }
 
     /** Konsumsi event logout setelah navigasi agar tak terpicu ulang saat recomposition. */

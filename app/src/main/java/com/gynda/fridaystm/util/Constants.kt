@@ -82,8 +82,8 @@ object UserRole {
 /** Available class options for teacher filter (centralized, no magic strings). */
 object TeacherDashboardDefaults {
     val AVAILABLE_CLASSES = listOf(
-        "XI RPL A", "XI RPL B", "XI TKJ A", "XI TKJ B",
-        "X RPL A", "X RPL B", "XII RPL A", "XII RPL B",
+        "XI RPL A", "XI RPL B", "XI RPL C",
+        "XI TKJ A", "XI TKJ B", "X RPL A",
     )
     const val DEFAULT_CLASS = "XI RPL A"
 }
