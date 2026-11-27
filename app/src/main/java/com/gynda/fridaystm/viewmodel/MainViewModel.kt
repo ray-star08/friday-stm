@@ -8,7 +8,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gynda.fridaystm.data.repository.AuthRepository
 import com.gynda.fridaystm.data.repository.FirebaseAuthRepository
 import com.gynda.fridaystm.domain.Role
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -58,10 +60,10 @@ class MainViewModel(
         )
 
     /** Convenience for Login's onSuccess: one-shot fetch of current role's target. */
-    suspend fun resolvePostLoginTarget(): MainNavTarget {
-        val uid = authRepository.currentUid ?: return MainNavTarget.Login
-        val user = authRepository.getUserProfile(uid).getOrNull() ?: return MainNavTarget.Login
-        return if (user.roleEnum.isTeacherOrAdmin) MainNavTarget.TeacherDashboard
+    suspend fun resolvePostLoginTarget(): MainNavTarget = withContext(Dispatchers.Main) {
+        val uid = authRepository.currentUid ?: return@withContext MainNavTarget.Login
+        val user = authRepository.getUserProfile(uid).getOrNull() ?: return@withContext MainNavTarget.Login
+        if (user.roleEnum.isTeacherOrAdmin) MainNavTarget.TeacherDashboard
         else MainNavTarget.StudentHome
     }
 
